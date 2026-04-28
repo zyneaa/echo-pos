@@ -1,0 +1,45 @@
+{
+  "name": "client",
+  "version": "1.0.0",
+  "main": "index.ts",
+  "scripts": {
+    "start": "expo start",
+    "android": "expo run:android",
+    "ios": "expo run:ios",
+    "web": "expo start --web"
+  },
+  "dependencies": {
+    "@expo/vector-icons": "^15.1.1",
+    "@react-navigation/bottom-tabs": "^7.15.10",
+    "@react-navigation/native": "^7.2.2",
+    "@react-navigation/stack": "^7.8.11",
+    "axios": "^1.15.2",
+    "babel-preset-expo": "^55.0.18",
+    "expo": "^55.0.17",
+    "expo-barcode-scanner": "^13.0.1",
+    "expo-camera": "~55.0.16",
+    "expo-sqlite": "~55.0.15",
+    "expo-status-bar": "~55.0.5",
+    "nativewind": "^4.2.3",
+    "prettier-plugin-tailwindcss": "^0.5.14",
+    "react": "19.2.0",
+    "react-dom": "19.2.0",
+    "react-native": "0.83.6",
+    "react-native-get-random-values": "~1.11.0",
+    "react-native-paper": "^5.15.1",
+    "react-native-reanimated": "^4.3.0",
+    "react-native-safe-area-context": "~5.6.2",
+    "react-native-screens": "~4.23.0",
+    "react-native-vector-icons": "^10.3.0",
+    "react-native-web": "^0.21.0",
+    "tailwindcss": "^3.4.19",
+    "uuid": "^14.0.0",
+    "zustand": "^5.0.12"
+  },
+  "devDependencies": {
+    "@types/react": "~19.2.10",
+    "@types/uuid": "^10.0.0",
+    "typescript": "~5.9.2"
+  },
+  "private": true
+}
