@@ -1,8 +1,8 @@
 package repository
 
 import (
-	"database/sql"
 	"context"
+	"database/sql"
 	"encoding/json"
 	"github.com/username/pos-server/internal/model"
 )
@@ -19,7 +19,7 @@ func NewSQLiteRepository(db *sql.DB) *SQLiteRepository {
 func (r *SQLiteRepository) GetUserByUsername(ctx context.Context, username string) (*model.User, error) {
 	query := `SELECT id, username, password_hash, role, created_at FROM users WHERE username = ?`
 	row := r.db.QueryRowContext(ctx, query, username)
-	
+
 	var user model.User
 	err := row.Scan(&user.ID, &user.Username, &user.PasswordHash, &user.Role, &user.CreatedAt)
 	if err != nil {
@@ -65,7 +65,7 @@ func (r *SQLiteRepository) CreateProductType(ctx context.Context, t *model.Produ
 func (r *SQLiteRepository) GetProductByBarcode(ctx context.Context, barcodeID string) (*model.Product, error) {
 	query := `SELECT id, barcode_id, name, image_url, description, type_id, price_mmk, stock_quantity, cost_price_mmk, alert_stock, expire_at, created_at FROM products WHERE barcode_id = ?`
 	row := r.db.QueryRowContext(ctx, query, barcodeID)
-	
+
 	var p model.Product
 	err := row.Scan(&p.ID, &p.BarcodeID, &p.Name, &p.ImageURL, &p.Description, &p.TypeID, &p.PriceMMK, &p.StockQuantity, &p.CostPriceMMK, &p.AlertStock, &p.ExpireAt, &p.CreatedAt)
 	if err != nil {
@@ -89,6 +89,44 @@ func (r *SQLiteRepository) UpsertProduct(ctx context.Context, p *model.Product) 
 		expire_at=excluded.expire_at`
 	_, err := r.db.ExecContext(ctx, query, p.ID, p.BarcodeID, p.Name, p.ImageURL, p.Description, p.TypeID, p.PriceMMK, p.StockQuantity, p.CostPriceMMK, p.AlertStock, p.ExpireAt)
 	return err
+}
+
+func (r *SQLiteRepository) SearchByName(ctx context.Context, name string) ([]model.Product, error) {
+	query := `SELECT * FROM products WHERE name LIKE ?`
+	return r.fetchProducts(ctx, query, "%"+name+"%")
+}
+
+func (r *SQLiteRepository) GetLowStock(ctx context.Context) ([]model.Product, error) {
+	query := `SELECT * FROM products WHERE stock_quantity <= alert_stock`
+	return r.fetchProducts(ctx, query)
+}
+
+func (r *SQLiteRepository) GetByPriceRange(ctx context.Context, min, max float64) ([]model.Product, error) {
+	query := `SELECT * FROM products WHERE price_mmk BETWEEN ? AND ?`
+	return r.fetchProducts(ctx, query, min, max)
+}
+
+func (r *SQLiteRepository) fetchProducts(ctx context.Context, query string, args ...any) ([]model.Product, error) {
+	rows, err := r.db.QueryContext(ctx, query, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var products []model.Product
+	for rows.Next() {
+		var p model.Product
+		err := rows.Scan(
+			&p.ID, &p.BarcodeID, &p.Name, &p.ImageURL, &p.Description, 
+			&p.TypeID, &p.PriceMMK, &p.StockQuantity, &p.CostPriceMMK, 
+			&p.AlertStock, &p.ExpireAt, &p.CreatedAt,
+		)
+		if err != nil {
+			return nil, err
+		}
+		products = append(products, p)
+	}
+	return products, rows.Err()
 }
 
 func (r *SQLiteRepository) GetAllProducts(ctx context.Context) ([]model.Product, error) {
@@ -139,4 +177,36 @@ func (r *SQLiteRepository) CreateTransaction(ctx context.Context, t *model.Trans
 	}
 
 	return tx.Commit()
+}
+
+func (r *SQLiteRepository) GetTransactionsByPeriod(ctx context.Context, start, end string) ([]model.Transaction, error) {
+	query := `SELECT transaction_id, total_amount_mmk, payment_method, items, cashier_id, timestamp FROM transactions WHERE timestamp BETWEEN ? AND ?`
+	
+	rows, err := r.db.QueryContext(ctx, query, start, end)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var transactions []model.Transaction
+	for rows.Next() {
+		var t model.Transaction
+		var itemsJSON string
+		err := rows.Scan(&t.TransactionID, &t.TotalAmountMMK, &t.PaymentMethod, &itemsJSON, &t.CashierID, &t.Timestamp)
+		if err != nil {
+			return nil, err
+		}
+
+		if err := json.Unmarshal([]byte(itemsJSON), &t.Items); err != nil {
+			return nil, err
+		}
+
+		transactions = append(transactions, t)
+	}
+
+	if err = rows.Err(); err != nil {
+		return nil, err
+	}
+
+	return transactions, nil
 }

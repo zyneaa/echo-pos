@@ -71,6 +71,10 @@ func (s *POSService) UpsertProduct(ctx context.Context, p *model.Product) error 
 	return s.repo.UpsertProduct(ctx, p)
 }
 
+func(s *POSService) SearchByName(ctx context.Context, name string) ([]model.Product, error) {
+	return  s.repo.SearchByName(ctx, name)
+}
+
 func (s *POSService) GetProductByBarcode(ctx context.Context, barcodeID string) (*model.Product, error) {
 	return s.repo.GetProductByBarcode(ctx, barcodeID)
 }
@@ -81,4 +85,16 @@ func (s *POSService) GetAllProducts(ctx context.Context) ([]model.Product, error
 
 func (s *POSService) CreateTransaction(ctx context.Context, t *model.Transaction) error {
 	return s.repo.CreateTransaction(ctx, t)
+}
+
+func (s *POSService) GetTransactionByPeriod(ctx context.Context, start, end string) ([]model.Transaction, error) {
+	return s.repo.GetTransactionsByPeriod(ctx, start, end)
+}
+
+func (s *POSService) GetLowStock(ctx context.Context) ([]model.Product, error) {
+	return s.repo.GetLowStock(ctx)
+}
+
+func (s *POSService) GetByPriceRange(ctx context.Context, min, max float64) ([]model.Product, error) {
+	return s.repo.GetByPriceRange(ctx, min, max)
 }

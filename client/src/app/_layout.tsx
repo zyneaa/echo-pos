@@ -4,9 +4,15 @@ import { useColorScheme } from 'react-native';
 import { Stack } from 'expo-router';
 import { AnimatedSplashOverlay } from '@/components/animated-icon';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
+import { initDB } from '@/database/sqlite';
+import { useEffect } from 'react';
 
 export default function RootLayout() {
     const colorScheme = useColorScheme();
+
+    useEffect(() => {
+        initDB();
+    }, []);
 
     return (
         <GestureHandlerRootView style={{ flex: 1 }}>

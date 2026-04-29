@@ -11,7 +11,8 @@ import {
 } from 'react-native';
 import Svg, { Rect, Path, G, Circle } from 'react-native-svg';
 import { Colors } from '@/constants/theme';
-import { TrendingUp, TrendingDown, Wallet, Calendar, ChevronLeft, ChevronRight, X, Clock, Check } from 'lucide-react-native';
+import { TrendingUp, TrendingDown, Wallet, Calendar, ChevronLeft, ChevronRight, X, Clock, Check, RefreshCcw } from 'lucide-react-native';
+import { syncTransactions, fetchAndSyncProducts } from '@/api/sync';
 
 const VIEW_MODES = ['MINUTELY', 'HOURLY', 'DAILY', 'WEEKLY', 'MONTHLY', 'YEARLY'];
 
@@ -65,6 +66,21 @@ const InteractionOverlay = ({ title, data, onClose }: any) => (
 export default function DashboardScreen() {
     const { width } = useWindowDimensions();
     const [viewMode, setViewMode] = useState('DAILY');
+    const [isSyncing, setIsSyncing] = useState(false);
+
+    const handleSync = async () => {
+        setIsSyncing(true);
+        try {
+            await syncTransactions();
+            await fetchAndSyncProducts();
+            alert('Sync complete!');
+        } catch (error) {
+            console.error(error);
+            alert('Sync failed');
+        } finally {
+            setIsSyncing(false);
+        }
+    };
     
     // 1. DIMENSIONS & DATA FIRST
     const padding = 24 * 2;
@@ -198,7 +214,21 @@ export default function DashboardScreen() {
                 </View>
             </View>
 
-            <SectionTitle title="SALES ANALYTICS" />
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+                <SectionTitle title="SALES ANALYTICS" />
+                <Pressable 
+                    onPress={handleSync}
+                    disabled={isSyncing}
+                    style={({ pressed }) => [
+                        styles.syncButton,
+                        pressed && styles.syncButtonPressed,
+                        isSyncing && { opacity: 0.5 }
+                    ]}
+                >
+                    <RefreshCcw size={20} color={Colors.white} strokeWidth={3} />
+                    <Text style={styles.syncButtonText}>{isSyncing ? 'SYNCING...' : 'SYNC NOW'}</Text>
+                </Pressable>
+            </View>
 
             <View style={styles.chartContainer}>
                 {/* INTERACTIVE Date Range Header */}
@@ -828,5 +858,27 @@ const styles = StyleSheet.create({
         fontWeight: '900',
         color: Colors.textSecondary,
         marginBottom: 4,
+    },
+    syncButton: {
+        backgroundColor: Colors.primary,
+        flexDirection: 'row',
+        alignItems: 'center',
+        paddingHorizontal: 12,
+        paddingVertical: 8,
+        borderWidth: 3,
+        borderColor: Colors.text,
+        borderBottomWidth: 6,
+        borderRightWidth: 6,
+        gap: 8,
+    },
+    syncButtonPressed: {
+        borderBottomWidth: 3,
+        borderRightWidth: 3,
+        transform: [{ translateX: 3 }, { translateY: 3 }],
+    },
+    syncButtonText: {
+        color: Colors.white,
+        fontSize: 12,
+        fontWeight: '900',
     }
 });

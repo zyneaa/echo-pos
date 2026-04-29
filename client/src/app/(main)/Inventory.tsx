@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
     StyleSheet,
     View,
@@ -6,38 +6,31 @@ import {
     ScrollView,
     TextInput,
     Pressable,
-    FlatList
+    FlatList,
+    ActivityIndicator
 } from 'react-native';
 import { Colors } from '@/constants/theme';
-import { Search, Plus, Package } from 'lucide-react-native';
+import { Search, Plus, Package, RefreshCcw } from 'lucide-react-native';
+import { getProducts } from '@/database/sqlite';
+import { fetchAndSyncProducts } from '@/api/sync';
 
-const DUMMY_PRODUCTS = [
-    { id: '1', name: 'PREMIUM COFFEE BEANS', price: 25.00, stock: 45, category: 'FOOD' },
-    { id: '2', name: 'MECHANICAL KEYBOARD', price: 150.00, stock: 12, category: 'ELECTRONICS' },
-    { id: '3', name: 'OVERSURGED HOODIE', price: 85.00, stock: 30, category: 'CLOTHING' },
-    { id: '4', name: 'ERGONOMIC MOUSE', price: 65.00, stock: 8, category: 'ELECTRONICS' },
-    { id: '5', name: 'VINTAGE CAMERA', price: 210.00, stock: 3, category: 'ELECTRONICS' },
-    { id: '6', name: 'DARK ROAST COFFEE', price: 18.00, stock: 100, category: 'FOOD' },
-    { id: '7', name: 'DENIM JACKET', price: 120.00, stock: 15, category: 'CLOTHING' },
-];
-
-const ProductCard = ({ item }: { item: typeof DUMMY_PRODUCTS[0] }) => (
+const ProductCard = ({ item }: { item: any }) => (
     <View style={styles.productCard}>
         <View style={styles.productInfo}>
             <Text style={styles.productName}>{item.name}</Text>
             <View style={styles.badge}>
-                <Text style={styles.badgeText}>{item.category}</Text>
+                <Text style={styles.badgeText}>{item.barcode_id}</Text>
             </View>
         </View>
         <View style={styles.productStats}>
             <View style={styles.statBox}>
-                <Text style={styles.statLabel}>PRICE</Text>
-                <Text style={styles.statValue}>${item.price.toFixed(2)}</Text>
+                <Text style={styles.statLabel}>PRICE (MMK)</Text>
+                <Text style={styles.statValue}>{item.price_mmk.toLocaleString()}</Text>
             </View>
             <View style={[styles.statBox, { borderLeftWidth: 4 }]}>
                 <Text style={styles.statLabel}>STOCK</Text>
-                <Text style={[styles.statValue, item.stock < 10 ? { color: '#FF0000' } : {}]}>
-                    {item.stock}
+                <Text style={[styles.statValue, item.stock_quantity < item.alert_stock ? { color: '#FF0000' } : {}]}>
+                    {item.stock_quantity}
                 </Text>
             </View>
         </View>
@@ -46,9 +39,35 @@ const ProductCard = ({ item }: { item: typeof DUMMY_PRODUCTS[0] }) => (
 
 export default function InventoryScreen() {
     const [search, setSearch] = useState('');
+    const [products, setProducts] = useState<any[]>([]);
+    const [loading, setLoading] = useState(true);
+    const [isSyncing, setIsSyncing] = useState(false);
 
-    const filteredProducts = DUMMY_PRODUCTS.filter(p =>
-        p.name.toLowerCase().includes(search.toLowerCase())
+    const loadProducts = () => {
+        const data = getProducts() as any[];
+        setProducts(data);
+        setLoading(false);
+    };
+
+    useEffect(() => {
+        loadProducts();
+    }, []);
+
+    const handleSync = async () => {
+        setIsSyncing(true);
+        try {
+            await fetchAndSyncProducts();
+            loadProducts();
+        } catch (error) {
+            console.error(error);
+        } finally {
+            setIsSyncing(false);
+        }
+    };
+
+    const filteredProducts = products.filter(p =>
+        p.name.toLowerCase().includes(search.toLowerCase()) ||
+        p.barcode_id.toLowerCase().includes(search.toLowerCase())
     );
 
     return (
@@ -64,6 +83,9 @@ export default function InventoryScreen() {
                         onChangeText={setSearch}
                     />
                 </View>
+                <Pressable onPress={handleSync} disabled={isSyncing} style={[styles.addButton, { backgroundColor: Colors.white }]}>
+                    {isSyncing ? <ActivityIndicator color={Colors.text} /> : <RefreshCcw size={24} color={Colors.text} strokeWidth={3} />}
+                </Pressable>
                 <Pressable style={styles.addButton}>
                     <Plus size={24} color={Colors.white} strokeWidth={4} />
                 </Pressable>
@@ -74,6 +96,8 @@ export default function InventoryScreen() {
                 keyExtractor={item => item.id}
                 renderItem={({ item }) => <ProductCard item={item} />}
                 contentContainerStyle={styles.listContent}
+                refreshing={loading}
+                onRefresh={loadProducts}
                 ListEmptyComponent={
                     <View style={styles.emptyState}>
                         <Package size={64} color={Colors.textSecondary} strokeWidth={1} />
