@@ -1,4 +1,4 @@
-module github.com/username/pos-server
+module github.com/zyneaa/pos-server
 
 go 1.25.5
 

@@ -9,12 +9,13 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
-	"github.com/username/pos-server/internal/handler"
-	"github.com/username/pos-server/internal/repository"
-	"github.com/username/pos-server/internal/service"
-	"github.com/username/pos-server/pkg/auth"
-	"github.com/username/pos-server/pkg/backup"
-	"github.com/username/pos-server/pkg/database"
+
+	"github.com/zyneaa/pos-server/internal/handler"
+	"github.com/zyneaa/pos-server/internal/repository"
+	"github.com/zyneaa/pos-server/internal/service"
+	"github.com/zyneaa/pos-server/pkg/auth"
+	"github.com/zyneaa/pos-server/pkg/backup"
+	"github.com/zyneaa/pos-server/pkg/database"
 )
 
 func main() {

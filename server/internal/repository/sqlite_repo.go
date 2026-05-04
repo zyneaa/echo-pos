@@ -4,7 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
-	"github.com/username/pos-server/internal/model"
+	"github.com/zyneaa/pos-server/internal/model"
 )
 
 type SQLiteRepository struct {

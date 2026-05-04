@@ -34,6 +34,30 @@ export const initDB = () => {
       is_synced INTEGER DEFAULT 0
     );
   `);
+
+  // Migration: Ensure all columns exist in 'products' table
+  const tableInfo = db.getAllSync("PRAGMA table_info(products)") as any[];
+  const columnNames = tableInfo.map(c => c.name);
+
+  const migrations = [
+    { name: 'image_url', type: 'TEXT' },
+    { name: 'description', type: 'TEXT' },
+    { name: 'type_id', type: 'TEXT' },
+    { name: 'cost_price_mmk', type: 'INTEGER NOT NULL DEFAULT 0' },
+    { name: 'alert_stock', type: 'INTEGER NOT NULL DEFAULT 5' },
+    { name: 'expire_at', type: 'DATETIME DEFAULT CURRENT_TIMESTAMP' },
+  ];
+
+  for (const m of migrations) {
+    if (!columnNames.includes(m.name)) {
+      try {
+        db.execSync(`ALTER TABLE products ADD COLUMN ${m.name} ${m.type};`);
+        console.log(`Added missing column ${m.name} to products table`);
+      } catch (e) {
+        console.error(`Failed to add column ${m.name}:`, e);
+      }
+    }
+  }
 };
 
 export const getProducts = () => {

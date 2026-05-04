@@ -3,8 +3,8 @@ package handler
 import (
 	"encoding/json"
 	"github.com/go-chi/chi/v5"
-	"github.com/username/pos-server/internal/model"
-	"github.com/username/pos-server/internal/service"
+	"github.com/zyneaa/pos-server/internal/model"
+	"github.com/zyneaa/pos-server/internal/service"
 	"net/http"
 	"strconv"
 	"time"

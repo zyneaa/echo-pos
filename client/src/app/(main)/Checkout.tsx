@@ -7,21 +7,24 @@ import {
     Pressable,
     useWindowDimensions,
     Alert,
-    TextInput
+    TextInput,
+    Animated,
+    Vibration
 } from 'react-native';
 import { Colors } from '@/constants/theme';
-import { ShoppingCart, Trash2, CreditCard, Bluetooth, Camera as CameraIcon } from 'lucide-react-native';
+import { ShoppingCart, Trash2, CreditCard, Bluetooth, Camera as CameraIcon, Plus, Minus } from 'lucide-react-native';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import { useCartStore, useAuthStore } from '@/store/useStore';
-import { getProductByBarcode, insertTransaction } from '@/database/sqlite';
+import { fetchProductByBarcodeFromServer, createTransactionOnServer } from '@/api/sync';
 import 'react-native-get-random-values';
 import { v4 as uuidv4 } from 'uuid';
+import { PanGestureHandler, State } from 'react-native-gesture-handler';
 
 export default function CheckoutScreen() {
     const { height } = useWindowDimensions();
     const [isCameraActive, setIsCameraActive] = useState(true);
     const [permission, requestPermission] = useCameraPermissions();
-    const { items, addItem, removeItem, clearCart, total } = useCartStore();
+    const { items, addItem, removeItem, updateQuantity, clearCart, total } = useCartStore();
     const [scanned, setScanned] = useState(false);
     const [manualBarcode, setManualBarcode] = useState('');
     const scannerInputRef = useRef<TextInput>(null);
@@ -39,16 +42,21 @@ export default function CheckoutScreen() {
         setTimeout(() => setScanned(false), 2000);
     };
 
-    const processBarcode = (barcode: string) => {
-        const product = getProductByBarcode(barcode) as any;
-        if (product) {
-            addItem(product);
-        } else {
-            Alert.alert('Not Found', `Product with barcode ${barcode} not found.`);
+    const processBarcode = async (barcode: string) => {
+        try {
+            const product = await fetchProductByBarcodeFromServer(barcode);
+            if (product) {
+                addItem(product);
+            } else {
+                Alert.alert('Not Found', `Product with barcode ${barcode} not found.`);
+            }
+        } catch (error) {
+            console.error(error);
+            Alert.alert('Error', 'Failed to fetch product from server.');
         }
     };
 
-    const handleCheckout = () => {
+    const handleCheckout = async () => {
         if (items.length === 0) return;
 
         const transaction = {
@@ -64,29 +72,106 @@ export default function CheckoutScreen() {
         };
 
         try {
-            insertTransaction(transaction);
+            await createTransactionOnServer(transaction);
             clearCart();
-            Alert.alert('Success', 'Transaction completed locally.');
+            Alert.alert('Success', 'Transaction completed on server.');
         } catch (error) {
             console.error(error);
-            Alert.alert('Error', 'Failed to save transaction.');
+            Alert.alert('Error', 'Failed to complete transaction on server.');
         }
     };
 
-    const CartItem = ({ item }: { item: any }) => (
-        <View style={styles.cartItem}>
-            <View style={styles.itemInfo}>
-                <Text style={styles.itemName}>{item.name}</Text>
-                <Text style={styles.itemPrice}>{item.price_mmk.toLocaleString()} MMK x {item.quantity}</Text>
-            </View>
-            <View style={styles.itemTotal}>
-                <Text style={styles.itemTotalText}>{(item.price_mmk * item.quantity).toLocaleString()} MMK</Text>
-                <Pressable onPress={() => removeItem(item.id)} style={styles.deleteButton}>
-                    <Trash2 size={18} color={Colors.text} />
-                </Pressable>
-            </View>
-        </View>
-    );
+    const CartItem = ({ item }: { item: any }) => {
+        const translateX = useRef(new Animated.Value(0)).current;
+
+        const onGestureEvent = Animated.event(
+            [{ nativeEvent: { translationX: translateX } }],
+            { useNativeDriver: false } // Need false for background color interpolation
+        );
+
+        const onHandlerStateChange = (event: any) => {
+            if (event.nativeEvent.state === State.END) {
+                const { translationX } = event.nativeEvent;
+                if (translationX > 80) {
+                    // Swipe Right -> Increase
+                    updateQuantity(item.id, item.quantity + 1);
+                    Vibration.vibrate(20);
+                } else if (translationX < -80) {
+                    // Swipe Left -> Decrease
+                    updateQuantity(item.id, item.quantity - 1);
+                    Vibration.vibrate(20);
+                }
+                Animated.spring(translateX, {
+                    toValue: 0,
+                    useNativeDriver: false,
+                }).start();
+            }
+        };
+
+        const backgroundColor = translateX.interpolate({
+            inputRange: [-150, 0, 150],
+            outputRange: ['rgba(255, 0, 0, 0.4)', 'rgba(0,0,0,0)', 'rgba(0, 255, 0, 0.4)'],
+            extrapolate: 'clamp',
+        });
+
+        return (
+            <PanGestureHandler
+                onGestureEvent={onGestureEvent}
+                onHandlerStateChange={onHandlerStateChange}
+            >
+                <Animated.View style={[styles.cartItem, { backgroundColor: Colors.text }]}>
+                    <Animated.View style={[StyleSheet.absoluteFill, { backgroundColor, zIndex: 0 }]} />
+                    <Animated.View style={[styles.nestedCard, { transform: [{ translateX }], zIndex: 1 }]}>
+                        <View style={styles.itemMainInfo}>
+                            <View style={{ flex: 1 }}>
+                                <Text style={styles.itemName}>{item.name}</Text>
+                                <Text style={styles.itemPrice}>{item.price_mmk.toLocaleString()} MMK</Text>
+                            </View>
+                            <View style={styles.itemTotal}>
+                                <Text style={styles.itemTotalText}>{(item.price_mmk * item.quantity).toLocaleString()} MMK</Text>
+                            </View>
+                        </View>
+
+                        <View style={styles.itemControls}>
+                            <View style={styles.qtyContainer}>
+                                <Pressable 
+                                    onPress={() => {
+                                        updateQuantity(item.id, item.quantity - 1);
+                                        Vibration.vibrate(10);
+                                    }}
+                                    style={styles.qtyButton}
+                                >
+                                    <Minus size={16} color={Colors.text} strokeWidth={4} />
+                                </Pressable>
+                                <View style={styles.qtyDisplay}>
+                                    <Text style={styles.qtyText}>{item.quantity}</Text>
+                                </View>
+                                <Pressable 
+                                    onPress={() => {
+                                        updateQuantity(item.id, item.quantity + 1);
+                                        Vibration.vibrate(10);
+                                    }}
+                                    style={styles.qtyButton}
+                                >
+                                    <Plus size={16} color={Colors.text} strokeWidth={4} />
+                                </Pressable>
+                            </View>
+
+                            <Pressable 
+                                onPress={() => {
+                                    removeItem(item.id);
+                                    Vibration.vibrate([0, 20, 50, 20]); // Double pulse for deletion
+                                }}
+                                style={styles.itemTrashButton}
+                            >
+                                <Trash2 size={18} color={Colors.white} strokeWidth={3} />
+                            </Pressable>
+                        </View>
+                    </Animated.View>
+                </Animated.View>
+            </PanGestureHandler>
+        );
+    };
 
     return (
         <View style={styles.container}>
@@ -119,7 +204,7 @@ export default function CheckoutScreen() {
                     )
                 ) : (
                     <View style={styles.btPlaceholder}>
-                        <Bluetooth size={48} color={Colors.primary} />
+                        <Bluetooth size={32} color={Colors.primary} />
                         <TextInput
                             ref={scannerInputRef}
                             style={styles.hiddenInput}
@@ -130,15 +215,16 @@ export default function CheckoutScreen() {
                                 setManualBarcode('');
                             }}
                             autoFocus
-                            placeholder="Type barcode or use BT scanner"
+                            placeholder="TYPE OR SCAN..."
+                            placeholderTextColor={Colors.textSecondary}
                         />
-                        <Text style={styles.btStatusText}>WAITING FOR SCANNER...</Text>
+                        <Text style={styles.btStatusText}>READY FOR SCANNER</Text>
                         <Pressable 
                             style={styles.toggleModeButton}
                             onPress={() => setIsCameraActive(true)}
                         >
-                            <CameraIcon size={16} color={Colors.text} />
-                            <Text style={styles.toggleModeText}>SWITCH TO CAMERA</Text>
+                            <CameraIcon size={14} color={Colors.text} />
+                            <Text style={styles.toggleModeText}>CAMERA</Text>
                         </Pressable>
                     </View>
                 )}
@@ -196,7 +282,7 @@ const styles = StyleSheet.create({
         backgroundColor: Colors.background,
     },
     topSection: {
-        flex: 2,
+        height: 180,
         backgroundColor: Colors.text,
         borderBottomWidth: 4,
         borderColor: Colors.text,
@@ -219,55 +305,58 @@ const styles = StyleSheet.create({
     statusText: {
         color: Colors.white,
         fontWeight: '900',
-        fontSize: 12,
-        marginTop: 12,
+        fontSize: 10,
+        marginTop: 4,
         letterSpacing: 2,
         backgroundColor: 'rgba(0,0,0,0.5)',
-        padding: 4,
+        paddingHorizontal: 8,
+        paddingVertical: 2,
     },
     btPlaceholder: {
         flex: 1,
         backgroundColor: Colors.backgroundElement,
         justifyContent: 'center',
         alignItems: 'center',
+        padding: 12,
     },
     btStatusText: {
         color: Colors.text,
         fontWeight: '900',
-        fontSize: 12,
-        marginTop: 12,
+        fontSize: 10,
+        marginTop: 8,
         letterSpacing: 1,
     },
     hiddenInput: {
-        borderWidth: 2,
+        borderWidth: 3,
         borderColor: Colors.text,
-        width: '80%',
-        padding: 8,
-        marginTop: 8,
+        width: '90%',
+        padding: 10,
+        marginTop: 4,
         backgroundColor: Colors.white,
+        fontSize: 14,
         fontWeight: '900',
     },
     toggleModeButton: {
         position: 'absolute',
-        bottom: 16,
-        right: 16,
+        bottom: 12,
+        right: 12,
         backgroundColor: Colors.white,
         flexDirection: 'row',
         alignItems: 'center',
-        gap: 8,
-        padding: 8,
+        gap: 6,
+        padding: 6,
         borderWidth: 2,
         borderColor: Colors.text,
         borderBottomWidth: 4,
         borderRightWidth: 4,
     },
     toggleModeText: {
-        fontSize: 10,
+        fontSize: 9,
         fontWeight: '900',
         color: Colors.text,
     },
     bottomSection: {
-        flex: 5,
+        flex: 1,
         backgroundColor: Colors.background,
     },
     flatList: {
@@ -276,93 +365,134 @@ const styles = StyleSheet.create({
     cartHeader: {
         flexDirection: 'row',
         alignItems: 'center',
-        gap: 12,
-        padding: 20,
+        gap: 10,
+        paddingVertical: 12,
+        paddingHorizontal: 20,
         borderBottomWidth: 4,
         borderColor: Colors.text,
+        backgroundColor: Colors.white,
     },
     cartHeaderText: {
-        fontSize: 18,
+        fontSize: 16,
         fontWeight: '900',
         color: Colors.text,
         letterSpacing: 1,
     },
     cartList: {
-        padding: 20,
+        padding: 16,
     },
     cartItem: {
-        flexDirection: 'row',
-        justifyContent: 'space-between',
-        alignItems: 'center',
+        backgroundColor: Colors.text,
+        marginBottom: 12,
+        borderBottomWidth: 6,
+        borderRightWidth: 6,
+        borderColor: Colors.text,
+    },
+    nestedCard: {
         backgroundColor: Colors.white,
         borderWidth: 3,
         borderColor: Colors.text,
         padding: 12,
-        marginBottom: 12,
-        borderBottomWidth: 6,
-        borderRightWidth: 6,
+        margin: -2,
     },
-    itemInfo: {
-        flex: 1,
+    itemMainInfo: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'flex-start',
+        marginBottom: 12,
+        borderBottomWidth: 2,
+        borderColor: Colors.backgroundElement,
+        paddingBottom: 8,
+    },
+    itemControls: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+    },
+    qtyContainer: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        backgroundColor: Colors.backgroundElement,
+        borderWidth: 2,
+        borderColor: Colors.text,
+    },
+    qtyButton: {
+        padding: 8,
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    qtyDisplay: {
+        minWidth: 40,
+        alignItems: 'center',
+        borderLeftWidth: 2,
+        borderRightWidth: 2,
+        borderColor: Colors.text,
+        paddingHorizontal: 8,
+    },
+    qtyText: {
+        fontSize: 16,
+        fontWeight: '900',
+        color: Colors.text,
+    },
+    itemTrashButton: {
+        backgroundColor: Colors.text,
+        padding: 8,
+        borderWidth: 2,
+        borderColor: Colors.text,
+        borderBottomWidth: 4,
+        borderRightWidth: 4,
     },
     itemName: {
-        fontSize: 16,
+        fontSize: 15,
         fontWeight: '900',
         color: Colors.text,
     },
     itemPrice: {
-        fontSize: 14,
+        fontSize: 13,
         fontWeight: 'bold',
         color: Colors.textSecondary,
-    },
-    itemTotal: {
-        alignItems: 'flex-end',
-        gap: 8,
     },
     itemTotalText: {
         fontSize: 16,
         fontWeight: '900',
-        color: Colors.text,
-    },
-    deleteButton: {
-        padding: 4,
+        color: Colors.primary,
     },
     summaryContainer: {
         backgroundColor: Colors.white,
         borderTopWidth: 4,
         borderColor: Colors.text,
-        padding: 20,
-        paddingBottom: 120,
+        padding: 16,
+        paddingBottom: 110,
     },
     summaryRow: {
         flexDirection: 'row',
         justifyContent: 'space-between',
-        marginBottom: 8,
+        marginBottom: 4,
     },
     summaryLabel: {
-        fontSize: 12,
+        fontSize: 11,
         fontWeight: '900',
         color: Colors.textSecondary,
     },
     summaryValue: {
-        fontSize: 14,
+        fontSize: 13,
         fontWeight: '900',
         color: Colors.text,
     },
     totalRow: {
-        marginTop: 8,
-        paddingTop: 8,
+        marginTop: 6,
+        paddingTop: 6,
         borderTopWidth: 2,
         borderColor: Colors.text,
         borderStyle: 'dashed',
     },
     totalLabel: {
-        fontSize: 20,
+        fontSize: 18,
         fontWeight: '900',
         color: Colors.text,
     },
     totalValue: {
-        fontSize: 24,
+        fontSize: 22,
         fontWeight: '900',
         color: Colors.primary,
     },
@@ -371,17 +501,17 @@ const styles = StyleSheet.create({
         flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'center',
-        gap: 12,
-        paddingVertical: 16,
+        gap: 10,
+        paddingVertical: 14,
         borderWidth: 4,
         borderColor: Colors.text,
         borderBottomWidth: 8,
         borderRightWidth: 8,
-        marginTop: 16,
+        marginTop: 12,
     },
     checkoutButtonText: {
         color: Colors.white,
-        fontSize: 20,
+        fontSize: 18,
         fontWeight: '900',
         letterSpacing: 2,
     }

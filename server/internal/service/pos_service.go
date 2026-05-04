@@ -4,9 +4,9 @@ import (
 	"context"
 	"errors"
 	"github.com/google/uuid"
-	"github.com/username/pos-server/internal/model"
-	"github.com/username/pos-server/internal/repository"
-	"github.com/username/pos-server/pkg/auth"
+	"github.com/zyneaa/pos-server/internal/model"
+	"github.com/zyneaa/pos-server/internal/repository"
+	"github.com/zyneaa/pos-server/pkg/auth"
 	"golang.org/x/crypto/bcrypt"
 )
 
