@@ -2,8 +2,8 @@ package database
 
 import (
 	"database/sql"
-	_ "modernc.org/sqlite"
 	"log"
+	_ "modernc.org/sqlite"
 )
 
 func InitDB(dbPath string) (*sql.DB, error) {
@@ -45,9 +45,12 @@ func createTables(db *sql.DB) error {
 			stock_quantity INTEGER NOT NULL,
 			cost_price_mmk INTEGER NOT NULL,
 			alert_stock INTEGER NOT NULL,
+			supplier_TEXT,
 			expire_at DATETIME DEFAULT CURRENT_TIMESTAMP,
 			created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-			FOREIGN KEY(type_id) REFERENCES product_types(id)
+			FOREIGN KEY(type_id) REFERENCES product_types(id),
+			FOREIGN KEY(supplier_id) REFERENCES suppliers(id)
+
 		);`,
 		`CREATE TABLE IF NOT EXISTS transactions (
 			transaction_id TEXT PRIMARY KEY,
@@ -57,6 +60,11 @@ func createTables(db *sql.DB) error {
 			timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
 			cashier_id TEXT,
 			FOREIGN KEY(cashier_id) REFERENCES users(id)
+		);`,
+		`CREATE TABLE IF NOT EXISTS suppliers (
+			supplier_id TEXT PRIMARY KEY,
+			name TEXT NOT NULL,
+			timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
 		);`,
 	}
 

@@ -108,7 +108,38 @@ func (h *POSHandler) GetProductByBarcode(w http.ResponseWriter, r *http.Request)
 }
 
 func (h *POSHandler) GetAllProducts(w http.ResponseWriter, r *http.Request) {
-	products, err := h.svc.GetAllProducts(r.Context())
+	filters := make(map[string]interface{})
+	query := r.URL.Query()
+
+	if name := query.Get("name"); name != "" {
+		filters["name"] = name
+	}
+	if typeID := query.Get("type_id"); typeID != "" {
+		filters["type_id"] = typeID
+	}
+	if minStock := query.Get("min_stock"); minStock != "" {
+		filters["min_stock"], _ = strconv.Atoi(minStock)
+	}
+	if maxStock := query.Get("max_stock"); maxStock != "" {
+		filters["max_stock"], _ = strconv.Atoi(maxStock)
+	}
+	if minPrice := query.Get("min_price"); minPrice != "" {
+		filters["min_price"], _ = strconv.Atoi(minPrice)
+	}
+	if maxPrice := query.Get("max_price"); maxPrice != "" {
+		filters["max_price"], _ = strconv.Atoi(maxPrice)
+	}
+	if minCost := query.Get("min_cost"); minCost != "" {
+		filters["min_cost"], _ = strconv.Atoi(minCost)
+	}
+	if maxCost := query.Get("max_cost"); maxCost != "" {
+		filters["max_cost"], _ = strconv.Atoi(maxCost)
+	}
+
+	limit, _ := strconv.Atoi(query.Get("limit"))
+	offset, _ := strconv.Atoi(query.Get("offset"))
+
+	products, err := h.svc.GetProducts(r.Context(), filters, limit, offset)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -166,16 +197,20 @@ func (h *POSHandler) CreateTransaction(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusCreated)
 }
 
-func (h *POSHandler) GetTransactionByPeriod(w http.ResponseWriter, r *http.Request) {
+func (h *POSHandler) GetTransactions(w http.ResponseWriter, r *http.Request) {
 	start := r.URL.Query().Get("start")
 	end := r.URL.Query().Get("end")
+	minAmountStr := r.URL.Query().Get("min_amount")
 
-	if start == "" || end == "" {
-		http.Error(w, "Missing start or end timestamp", http.StatusBadRequest)
-		return
+	minAmount := 0
+	if minAmountStr != "" {
+		minAmount, _ = strconv.Atoi(minAmountStr)
 	}
 
-	transactions, err := h.svc.GetTransactionByPeriod(r.Context(), start, end)
+	limit, _ := strconv.Atoi(r.URL.Query().Get("limit"))
+	offset, _ := strconv.Atoi(r.URL.Query().Get("offset"))
+
+	transactions, err := h.svc.GetTransactions(r.Context(), start, end, minAmount, limit, offset)
 	if err != nil {
 		http.Error(w, "Failed to fetch transactions: "+err.Error(), http.StatusInternalServerError)
 		return

@@ -71,7 +71,12 @@ func (s *POSService) UpsertProduct(ctx context.Context, p *model.Product) error 
 	return s.repo.UpsertProduct(ctx, p)
 }
 
-func(s *POSService) SearchByName(ctx context.Context, name string) ([]model.Product, error) {
+func (s *POSService) GetProducts(ctx context.Context, filters map[string]interface{}, limit, offset int) ([]model.Product, error) {
+	return s.repo.GetProducts(ctx, filters, limit, offset)
+}
+
+func (s *POSService) SearchByName(ctx context.Context, name string) ([]model.Product, error) {
+
 	return  s.repo.SearchByName(ctx, name)
 }
 
@@ -85,6 +90,10 @@ func (s *POSService) GetAllProducts(ctx context.Context) ([]model.Product, error
 
 func (s *POSService) CreateTransaction(ctx context.Context, t *model.Transaction) error {
 	return s.repo.CreateTransaction(ctx, t)
+}
+
+func (s *POSService) GetTransactions(ctx context.Context, start, end string, minAmount, limit, offset int) ([]model.Transaction, error) {
+	return s.repo.GetTransactions(ctx, start, end, minAmount, limit, offset)
 }
 
 func (s *POSService) GetTransactionByPeriod(ctx context.Context, start, end string) ([]model.Transaction, error) {

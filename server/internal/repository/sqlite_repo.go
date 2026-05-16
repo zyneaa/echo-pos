@@ -179,6 +179,112 @@ func (r *SQLiteRepository) CreateTransaction(ctx context.Context, t *model.Trans
 	return tx.Commit()
 }
 
+func (r *SQLiteRepository) GetProducts(ctx context.Context, filters map[string]interface{}, limit, offset int) ([]model.Product, error) {
+	query := `SELECT id, barcode_id, name, image_url, description, type_id, price_mmk, stock_quantity, cost_price_mmk, alert_stock, expire_at, created_at FROM products WHERE 1=1`
+	var args []interface{}
+
+	if val, ok := filters["name"]; ok && val != "" {
+		query += ` AND (name LIKE ? OR barcode_id LIKE ?)`
+		args = append(args, "%"+val.(string)+"%", "%"+val.(string)+"%")
+	}
+
+	if val, ok := filters["type_id"]; ok && val != "" {
+		query += ` AND type_id = ?`
+		args = append(args, val)
+	}
+
+	if val, ok := filters["min_stock"]; ok {
+		query += ` AND stock_quantity >= ?`
+		args = append(args, val)
+	}
+
+	if val, ok := filters["max_stock"]; ok {
+		query += ` AND stock_quantity <= ?`
+		args = append(args, val)
+	}
+
+	if val, ok := filters["min_price"]; ok {
+		query += ` AND price_mmk >= ?`
+		args = append(args, val)
+	}
+
+	if val, ok := filters["max_price"]; ok {
+		query += ` AND price_mmk <= ?`
+		args = append(args, val)
+	}
+
+	if val, ok := filters["min_cost"]; ok {
+		query += ` AND cost_price_mmk >= ?`
+		args = append(args, val)
+	}
+
+	if val, ok := filters["max_cost"]; ok {
+		query += ` AND cost_price_mmk <= ?`
+		args = append(args, val)
+	}
+
+	query += ` ORDER BY created_at DESC`
+
+	if limit > 0 {
+		query += ` LIMIT ? OFFSET ?`
+		args = append(args, limit, offset)
+	}
+
+	return r.fetchProducts(ctx, query, args...)
+}
+
+func (r *SQLiteRepository) GetTransactions(ctx context.Context, start, end string, minAmount, limit, offset int) ([]model.Transaction, error) {
+	query := `SELECT transaction_id, total_amount_mmk, payment_method, items, cashier_id, timestamp FROM transactions WHERE 1=1`
+	var args []interface{}
+
+	if start != "" && end != "" {
+		query += ` AND timestamp BETWEEN ? AND ?`
+		args = append(args, start, end)
+	} else if start != "" {
+		query += ` AND timestamp >= ?`
+		args = append(args, start)
+	} else if end != "" {
+		query += ` AND timestamp <= ?`
+		args = append(args, end)
+	}
+
+	if minAmount > 0 {
+		query += ` AND total_amount_mmk >= ?`
+		args = append(args, minAmount)
+	}
+
+	query += ` ORDER BY timestamp DESC`
+
+	if limit > 0 {
+		query += ` LIMIT ? OFFSET ?`
+		args = append(args, limit, offset)
+	}
+
+	rows, err := r.db.QueryContext(ctx, query, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var transactions []model.Transaction
+	for rows.Next() {
+		var t model.Transaction
+		var itemsJSON string
+		err := rows.Scan(&t.TransactionID, &t.TotalAmountMMK, &t.PaymentMethod, &itemsJSON, &t.CashierID, &t.Timestamp)
+		if err != nil {
+			return nil, err
+		}
+
+		if err := json.Unmarshal([]byte(itemsJSON), &t.Items); err != nil {
+			return nil, err
+		}
+
+		transactions = append(transactions, t)
+	}
+
+	return transactions, rows.Err()
+}
+
 func (r *SQLiteRepository) GetTransactionsByPeriod(ctx context.Context, start, end string) ([]model.Transaction, error) {
 	query := `SELECT transaction_id, total_amount_mmk, payment_method, items, cashier_id, timestamp FROM transactions WHERE timestamp BETWEEN ? AND ?`
 	

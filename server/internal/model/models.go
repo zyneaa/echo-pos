@@ -54,3 +54,9 @@ type Transaction struct {
 	Timestamp      time.Time         `json:"timestamp" db:"timestamp"`
 	CashierID      string            `json:"cashier_id" db:"cashier_id"`
 }
+
+type Supplier struct {
+	SupplierId string    `json:"supplier_id" db:"supplier_id"`
+	Name       string    `json:"name" db:"name"`
+	Timestamp  time.Time `json:"timestamp" db:"timestamp"`
+}
