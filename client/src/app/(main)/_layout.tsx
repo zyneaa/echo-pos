@@ -1,7 +1,7 @@
 import React from 'react';
 import { Drawer } from 'expo-router/drawer';
 import { StyleSheet, Pressable, View, Text } from 'react-native';
-import { LayoutDashboard, ShoppingCart, Package, ScanLine, Menu } from 'lucide-react-native';
+import { LayoutDashboard, ShoppingCart, Package, ScanLine, Menu, History } from 'lucide-react-native';
 import { Colors } from '@/constants/theme';
 import { useNavigation } from 'expo-router';
 import { DrawerActions } from '@react-navigation/native';
@@ -69,6 +69,16 @@ export default function DrawerLayout() {
                     drawerLabel: 'SCANNER',
                     drawerIcon: ({ color }) => (
                         <ScanLine color={color} size={24} strokeWidth={2.5} />
+                    ),
+                }}
+            />
+            <Drawer.Screen
+                name="History"
+                options={{
+                    title: 'HISTORY',
+                    drawerLabel: 'HISTORY',
+                    drawerIcon: ({ color }) => (
+                        <History color={color} size={24} strokeWidth={2.5} />
                     ),
                 }}
             />

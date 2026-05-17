@@ -15,7 +15,8 @@ import { Colors } from '@/constants/theme';
 import { ShoppingCart, Trash2, CreditCard, Bluetooth, Camera as CameraIcon, Plus, Minus } from 'lucide-react-native';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import { useCartStore, useAuthStore } from '@/store/useStore';
-import { fetchProductByBarcodeFromServer, createTransactionOnServer } from '@/api/sync';
+import { fetchProductByBarcodeFromServer, syncTransactions } from '@/api/sync';
+import { insertTransaction } from '@/database/sqlite';
 import 'react-native-get-random-values';
 import { v4 as uuidv4 } from 'uuid';
 import { PanGestureHandler, State } from 'react-native-gesture-handler';
@@ -62,22 +63,24 @@ export default function CheckoutScreen() {
         const transaction = {
             transaction_id: uuidv4(),
             total_amount_mmk: total,
-            payment_method: 'Cash',
+            payment_method: 'CASH',
             items: items.map(i => ({
-                product_id: i.id,
+                id: i.id,
+                name: i.name,
                 quantity: i.quantity,
-                price_at_time_of_sale: i.price_mmk
+                price_mmk: i.price_mmk
             })),
             cashier_id: useAuthStore.getState().user?.id || 'temp-cashier'
         };
 
         try {
-            await createTransactionOnServer(transaction);
+            insertTransaction(transaction);
+            syncTransactions().catch(console.error);
             clearCart();
-            Alert.alert('Success', 'Transaction completed on server.');
+            Alert.alert('Success', 'Transaction completed.');
         } catch (error) {
             console.error(error);
-            Alert.alert('Error', 'Failed to complete transaction on server.');
+            Alert.alert('Error', 'Failed to complete transaction.');
         }
     };
 

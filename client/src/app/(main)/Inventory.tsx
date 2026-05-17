@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
     StyleSheet,
     View,
@@ -8,14 +8,31 @@ import {
     FlatList,
     ActivityIndicator,
     Modal,
-    Dimensions
+    Dimensions,
+    ScrollView
 } from 'react-native';
 import { Colors } from '@/constants/theme';
-import { Search, Plus, Package, RefreshCcw, Edit2, X, Info, Calendar, DollarSign, Layers } from 'lucide-react-native';
-import { fetchAndSyncProducts, fetchProductsFromServer } from '@/api/sync';
+import { 
+    Search, 
+    Plus, 
+    Package, 
+    RefreshCcw, 
+    Edit2, 
+    X, 
+    Info, 
+    Calendar, 
+    DollarSign, 
+    Layers, 
+    Filter,
+    Check,
+    ChevronDown
+} from 'lucide-react-native';
+import { fetchAndSyncProducts, fetchProductsFromServer, fetchProductTypesFromServer } from '@/api/sync';
 import { useRouter } from 'expo-router';
+import { globalStyle } from '@/constants/globalStyle';
 
 const { width, height } = Dimensions.get('window');
+const PAGE_SIZE = 10;
 
 const ProductCard = ({ item, onPress, onEdit }: { item: any; onPress: () => void; onEdit: () => void }) => {
     const isExhausted = item.stock_quantity === 0;
@@ -66,35 +83,113 @@ export default function InventoryScreen() {
     const [search, setSearch] = useState('');
     const [products, setProducts] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
+    const [loadingMore, setLoadingMore] = useState(false);
     const [isSyncing, setIsSyncing] = useState(false);
     const [selectedProduct, setSelectedProduct] = useState<any | null>(null);
+    const [offset, setOffset] = useState(0);
+    const [hasMore, setHasMore] = useState(true);
 
-    const loadProducts = async () => {
-        setLoading(true);
+    // Filter States
+    const [isFilterVisible, setIsFilterVisible] = useState(false);
+    const [productTypes, setProductTypes] = useState<any[]>([]);
+    const [filters, setFilters] = useState({
+        type_id: '',
+        min_stock: '',
+        max_stock: '',
+        min_price: '',
+        max_price: '',
+    });
+    const [activeFilters, setActiveFilters] = useState<any>({});
+
+    const loadProducts = async (newOffset = 0, currentFilters = activeFilters) => {
+        if (newOffset === 0) setLoading(true);
+        else setLoadingMore(true);
+
         try {
-            const data = await fetchProductsFromServer();
-            setProducts(data);
+            const data = await fetchProductsFromServer({
+                name: search,
+                limit: PAGE_SIZE,
+                offset: newOffset,
+                ...currentFilters
+            });
+
+            if (newOffset === 0) {
+                setProducts(data || []);
+            } else {
+                setProducts(prev => [...prev, ...(data || [])]);
+            }
+
+            setHasMore(data && data.length === PAGE_SIZE);
+            setOffset(newOffset);
         } catch (error) {
             console.error(error);
         } finally {
             setLoading(false);
+            setLoadingMore(false);
         }
     };
 
+    const loadProductTypes = async () => {
+        const data = await fetchProductTypesFromServer();
+        setProductTypes(data || []);
+    };
+
     useEffect(() => {
-        loadProducts();
+        loadProductTypes();
+        loadProducts(0);
     }, []);
+
+    // Re-load when search changes
+    useEffect(() => {
+        const timeout = setTimeout(() => {
+            loadProducts(0);
+        }, 500);
+        return () => clearTimeout(timeout);
+    }, [search]);
 
     const handleSync = async () => {
         setIsSyncing(true);
         try {
-            const data = await fetchAndSyncProducts();
-            setProducts(data);
+            await fetchAndSyncProducts();
+            loadProducts(0);
         } catch (error) {
             console.error(error);
         } finally {
             setIsSyncing(false);
         }
+    };
+
+    const handleLoadMore = () => {
+        if (!loadingMore && hasMore && !loading) {
+            loadProducts(offset + PAGE_SIZE);
+        }
+    };
+
+    const applyFilters = () => {
+        const newFilters: any = {};
+        if (filters.type_id) newFilters.type_id = filters.type_id;
+        if (filters.min_stock) newFilters.min_stock = parseInt(filters.min_stock);
+        if (filters.max_stock) newFilters.max_stock = parseInt(filters.max_stock);
+        if (filters.min_price) newFilters.min_price = parseInt(filters.min_price);
+        if (filters.max_price) newFilters.max_price = parseInt(filters.max_price);
+
+        setActiveFilters(newFilters);
+        setIsFilterVisible(false);
+        loadProducts(0, newFilters);
+    };
+
+    const resetFilters = () => {
+        const emptyFilters = {
+            type_id: '',
+            min_stock: '',
+            max_stock: '',
+            min_price: '',
+            max_price: '',
+        };
+        setFilters(emptyFilters);
+        setActiveFilters({});
+        setIsFilterVisible(false);
+        loadProducts(0, {});
     };
 
     const handleEdit = (product: any) => {
@@ -105,34 +200,134 @@ export default function InventoryScreen() {
         });
     };
 
-    const filteredProducts = products.filter(p =>
-        p.name.toLowerCase().includes(search.toLowerCase()) ||
-        p.barcode_id.toLowerCase().includes(search.toLowerCase())
+    const FilterModal = () => (
+        <Modal
+            visible={isFilterVisible}
+            transparent={true}
+            animationType="none"
+            onRequestClose={() => setIsFilterVisible(false)}
+        >
+            <View style={styles.modalOverlay}>
+                <View style={[styles.modalContent, globalStyle.brutalistBox]}>
+                    <View style={styles.modalHeader}>
+                        <Text style={styles.modalTitle}>ADVANCED FILTERS</Text>
+                        <Pressable onPress={() => setIsFilterVisible(false)}>
+                            <X size={24} color={Colors.white} strokeWidth={4} />
+                        </Pressable>
+                    </View>
+
+                    <ScrollView style={styles.modalBody}>
+                        <Text style={styles.filterLabel}>PRODUCT TYPE</Text>
+                        <View style={styles.typeGrid}>
+                            <Pressable 
+                                style={[styles.typeItem, filters.type_id === '' && styles.typeItemActive]}
+                                onPress={() => setFilters(prev => ({ ...prev, type_id: '' }))}
+                            >
+                                <Text style={[styles.typeText, filters.type_id === '' && styles.typeTextActive]}>ALL</Text>
+                            </Pressable>
+                            {productTypes.map(t => (
+                                <Pressable 
+                                    key={t.id}
+                                    style={[styles.typeItem, filters.type_id === t.id && styles.typeItemActive]}
+                                    onPress={() => setFilters(prev => ({ ...prev, type_id: t.id }))}
+                                >
+                                    <Text style={[styles.typeText, filters.type_id === t.id && styles.typeTextActive]}>{t.type_name}</Text>
+                                </Pressable>
+                            ))}
+                        </View>
+
+                        <Text style={styles.filterLabel}>STOCK QUANTITY</Text>
+                        <View style={styles.inputRow}>
+                            <TextInput 
+                                style={[styles.filterInput, { flex: 1 }]}
+                                placeholder="MIN"
+                                keyboardType="numeric"
+                                value={filters.min_stock}
+                                onChangeText={text => setFilters(prev => ({ ...prev, min_stock: text }))}
+                            />
+                            <Text style={styles.inputSeparator}>-</Text>
+                            <TextInput 
+                                style={[styles.filterInput, { flex: 1 }]}
+                                placeholder="MAX"
+                                keyboardType="numeric"
+                                value={filters.max_stock}
+                                onChangeText={text => setFilters(prev => ({ ...prev, max_stock: text }))}
+                            />
+                        </View>
+
+                        <Text style={styles.filterLabel}>SELL PRICE (MMK)</Text>
+                        <View style={styles.inputRow}>
+                            <TextInput 
+                                style={[styles.filterInput, { flex: 1 }]}
+                                placeholder="MIN"
+                                keyboardType="numeric"
+                                value={filters.min_price}
+                                onChangeText={text => setFilters(prev => ({ ...prev, min_price: text }))}
+                            />
+                            <Text style={styles.inputSeparator}>-</Text>
+                            <TextInput 
+                                style={[styles.filterInput, { flex: 1 }]}
+                                placeholder="MAX"
+                                keyboardType="numeric"
+                                value={filters.max_price}
+                                onChangeText={text => setFilters(prev => ({ ...prev, max_price: text }))}
+                            />
+                        </View>
+                    </ScrollView>
+
+                    <View style={styles.modalFooter}>
+                        <Pressable style={styles.resetButton} onPress={resetFilters}>
+                            <Text style={styles.resetButtonText}>RESET</Text>
+                        </Pressable>
+                        <Pressable style={styles.applyButton} onPress={applyFilters}>
+                            <Text style={styles.applyButtonText}>APPLY</Text>
+                        </Pressable>
+                    </View>
+                </View>
+            </View>
+        </Modal>
     );
 
     return (
         <View style={styles.container}>
-            <View style={styles.searchContainer}>
-                <View style={styles.searchInputWrapper}>
-                    <Search size={20} color={Colors.text} style={styles.searchIcon} strokeWidth={3} />
-                    <TextInput
-                        style={styles.searchInput}
-                        placeholder="SEARCH"
-                        placeholderTextColor={Colors.textSecondary}
-                        value={search}
-                        onChangeText={setSearch}
-                    />
+            <View style={styles.header}>
+                <View style={styles.searchRow}>
+                    <View style={styles.searchInputWrapper}>
+                        <Search size={20} color={Colors.text} style={styles.searchIcon} strokeWidth={3} />
+                        <TextInput
+                            style={styles.searchInput}
+                            placeholder="SEARCH PRODUCTS..."
+                            placeholderTextColor={Colors.textSecondary}
+                            value={search}
+                            onChangeText={setSearch}
+                        />
+                    </View>
+                    <Pressable 
+                        style={[styles.actionButton, activeFilters && Object.keys(activeFilters).length > 0 && { backgroundColor: '#FFFF00' }]} 
+                        onPress={() => setIsFilterVisible(true)}
+                    >
+                        <Filter size={24} color={Colors.text} strokeWidth={3} />
+                    </Pressable>
                 </View>
-                <Pressable onPress={handleSync} disabled={isSyncing} style={[styles.addButton, { backgroundColor: Colors.white }]}>
-                    {isSyncing ? <ActivityIndicator color={Colors.text} /> : <RefreshCcw size={24} color={Colors.text} strokeWidth={3} />}
-                </Pressable>
-                <Pressable style={styles.addButton} onPress={() => router.push('/Scanner')}>
-                    <Plus size={24} color={Colors.white} strokeWidth={4} />
-                </Pressable>
+
+                <View style={styles.actionsRow}>
+                    <Pressable onPress={handleSync} disabled={isSyncing} style={[styles.secondaryButton, { flex: 1 }]}>
+                        {isSyncing ? <ActivityIndicator color={Colors.text} /> : (
+                            <>
+                                <RefreshCcw size={20} color={Colors.text} strokeWidth={3} />
+                                <Text style={styles.buttonText}>SYNC SERVER</Text>
+                            </>
+                        )}
+                    </Pressable>
+                    <Pressable style={[styles.primaryButton, { flex: 1 }]} onPress={() => router.push('/Scanner')}>
+                        <Plus size={20} color={Colors.white} strokeWidth={4} />
+                        <Text style={[styles.buttonText, { color: Colors.white }]}>ADD NEW</Text>
+                    </Pressable>
+                </View>
             </View>
 
             <FlatList
-                data={filteredProducts}
+                data={products}
                 keyExtractor={item => item.id}
                 renderItem={({ item }) => (
                     <ProductCard
@@ -142,31 +337,42 @@ export default function InventoryScreen() {
                     />
                 )}
                 contentContainerStyle={styles.listContent}
+                onRefresh={() => loadProducts(0)}
                 refreshing={loading}
-                onRefresh={loadProducts}
-                ListEmptyComponent={
-                    <View style={styles.emptyState}>
-                        <Package size={64} color={Colors.textSecondary} strokeWidth={1} />
-                        <Text style={styles.emptyText}>NO PRODUCTS FOUND</Text>
+                onEndReached={handleLoadMore}
+                onEndReachedThreshold={0.1}
+                ListFooterComponent={() => loadingMore ? (
+                    <View style={styles.loaderContainer}>
+                        <ActivityIndicator color={Colors.primary} size="large" />
                     </View>
+                ) : null}
+                ListEmptyComponent={
+                    !loading ? (
+                        <View style={styles.emptyState}>
+                            <Package size={64} color={Colors.textSecondary} strokeWidth={1} />
+                            <Text style={styles.emptyText}>NO PRODUCTS FOUND</Text>
+                        </View>
+                    ) : null
                 }
             />
+
+            <FilterModal />
 
             {/* Product Detail Modal */}
             <Modal
                 visible={!!selectedProduct}
                 transparent={true}
-                animationType="slide"
+                animationType="none"
                 onRequestClose={() => setSelectedProduct(null)}
             >
                 <View style={styles.modalOverlay}>
-                    <View style={styles.modalContent}>
+                    <View style={[styles.modalContent, globalStyle.brutalistBox]}>
                         <View style={styles.modalHeader}>
                             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
                                 <Info size={24} color={Colors.white} strokeWidth={3} />
                                 <Text style={styles.modalTitle}>PRODUCT DETAILS</Text>
                             </View>
-                            <Pressable onPress={() => setSelectedProduct(null)} style={styles.modalClose}>
+                            <Pressable onPress={() => setSelectedProduct(null)}>
                                 <X size={24} color={Colors.white} strokeWidth={4} />
                             </Pressable>
                         </View>
@@ -197,7 +403,7 @@ export default function InventoryScreen() {
                                         </View>
                                         <View>
                                             <Text style={styles.detailLabel}>CURRENT STOCK</Text>
-                                            <Text style={[styles.detailValue, selectedProduct.stock_quantity < selectedProduct.alert_stock && { color: '#FF0000' }]}>
+                                            <Text style={[styles.detailValue, selectedProduct.stock_quantity <= selectedProduct.alert_stock && { color: '#FF0000' }]}>
                                                 {selectedProduct.stock_quantity} UNITS
                                             </Text>
                                         </View>
@@ -254,10 +460,19 @@ const styles = StyleSheet.create({
         flex: 1,
         backgroundColor: Colors.backgroundElement,
     },
-    searchContainer: {
-        flexDirection: 'row',
+    header: {
         padding: 24,
+        paddingBottom: 0,
         gap: 16,
+    },
+    searchRow: {
+        flexDirection: 'row',
+        gap: 12,
+    },
+    actionsRow: {
+        flexDirection: 'row',
+        gap: 12,
+        marginBottom: 16,
     },
     searchInputWrapper: {
         flex: 1,
@@ -269,21 +484,21 @@ const styles = StyleSheet.create({
         borderBottomWidth: 8,
         borderRightWidth: 8,
         paddingHorizontal: 12,
+        height: 58,
     },
     searchIcon: {
         marginRight: 8,
     },
     searchInput: {
         flex: 1,
-        height: 50,
-        fontSize: 16,
+        fontSize: 14,
         fontWeight: '900',
         color: Colors.text,
     },
-    addButton: {
+    actionButton: {
         width: 58,
         height: 58,
-        backgroundColor: Colors.primary,
+        backgroundColor: Colors.white,
         borderWidth: 4,
         borderColor: Colors.text,
         borderBottomWidth: 8,
@@ -291,9 +506,38 @@ const styles = StyleSheet.create({
         justifyContent: 'center',
         alignItems: 'center',
     },
+    primaryButton: {
+        height: 50,
+        backgroundColor: Colors.primary,
+        borderWidth: 4,
+        borderColor: Colors.text,
+        borderBottomWidth: 6,
+        borderRightWidth: 6,
+        flexDirection: 'row',
+        justifyContent: 'center',
+        alignItems: 'center',
+        gap: 8,
+    },
+    secondaryButton: {
+        height: 50,
+        backgroundColor: Colors.white,
+        borderWidth: 4,
+        borderColor: Colors.text,
+        borderBottomWidth: 6,
+        borderRightWidth: 6,
+        flexDirection: 'row',
+        justifyContent: 'center',
+        alignItems: 'center',
+        gap: 8,
+    },
+    buttonText: {
+        fontSize: 12,
+        fontWeight: '900',
+        color: Colors.text,
+    },
     listContent: {
         padding: 24,
-        paddingTop: 0,
+        paddingTop: 16,
         paddingBottom: 120,
     },
     productCard: {
@@ -315,7 +559,6 @@ const styles = StyleSheet.create({
         color: Colors.text,
         marginBottom: 8,
         flex: 1,
-        paddingRight: 1
     },
     badge: {
         backgroundColor: Colors.text,
@@ -358,7 +601,7 @@ const styles = StyleSheet.create({
     },
     emptyState: {
         alignItems: 'center',
-        marginTop: 100,
+        marginTop: 60,
     },
     emptyText: {
         marginTop: 16,
@@ -366,10 +609,14 @@ const styles = StyleSheet.create({
         fontWeight: '900',
         color: Colors.textSecondary,
     },
+    loaderContainer: {
+        paddingVertical: 20,
+        alignItems: 'center',
+    },
     // Modal Styles
     modalOverlay: {
         flex: 1,
-        backgroundColor: 'rgba(0,0,0,0.8)',
+        backgroundColor: 'rgba(17, 45, 78, 0.8)',
         justifyContent: 'center',
         alignItems: 'center',
         padding: 24,
@@ -377,10 +624,6 @@ const styles = StyleSheet.create({
     modalContent: {
         width: '100%',
         backgroundColor: Colors.white,
-        borderWidth: 4,
-        borderColor: Colors.text,
-        borderBottomWidth: 12,
-        borderRightWidth: 12,
     },
     modalHeader: {
         backgroundColor: Colors.text,
@@ -395,8 +638,86 @@ const styles = StyleSheet.create({
         fontWeight: '900',
         letterSpacing: 2,
     },
-    modalClose: {
-        padding: 4,
+    modalBody: {
+        padding: 20,
+        maxHeight: height * 0.6,
+    },
+    filterLabel: {
+        fontSize: 12,
+        fontWeight: '900',
+        color: Colors.text,
+        marginBottom: 12,
+        marginTop: 16,
+        textDecorationLine: 'underline',
+    },
+    typeGrid: {
+        flexDirection: 'row',
+        flexWrap: 'wrap',
+        gap: 8,
+    },
+    typeItem: {
+        paddingHorizontal: 12,
+        paddingVertical: 8,
+        backgroundColor: Colors.backgroundElement,
+        borderWidth: 3,
+        borderColor: Colors.text,
+    },
+    typeItemActive: {
+        backgroundColor: Colors.primary,
+    },
+    typeText: {
+        fontSize: 10,
+        fontWeight: '900',
+        color: Colors.text,
+    },
+    typeTextActive: {
+        color: Colors.white,
+    },
+    inputRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 12,
+    },
+    filterInput: {
+        backgroundColor: Colors.white,
+        borderWidth: 3,
+        borderColor: Colors.text,
+        padding: 10,
+        fontSize: 14,
+        fontWeight: '900',
+    },
+    inputSeparator: {
+        fontWeight: '900',
+        fontSize: 18,
+    },
+    modalFooter: {
+        flexDirection: 'row',
+        borderTopWidth: 4,
+        borderColor: Colors.text,
+    },
+    resetButton: {
+        flex: 1,
+        padding: 16,
+        backgroundColor: Colors.backgroundElement,
+        alignItems: 'center',
+    },
+    applyButton: {
+        flex: 2,
+        padding: 16,
+        backgroundColor: Colors.primary,
+        alignItems: 'center',
+        borderLeftWidth: 4,
+        borderColor: Colors.text,
+    },
+    resetButtonText: {
+        fontSize: 14,
+        fontWeight: '900',
+        color: Colors.text,
+    },
+    applyButtonText: {
+        fontSize: 14,
+        fontWeight: '900',
+        color: Colors.white,
     },
     detailContainer: {
         padding: 20,
@@ -475,4 +796,3 @@ const styles = StyleSheet.create({
         letterSpacing: 2,
     }
 });
-

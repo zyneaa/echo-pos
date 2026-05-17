@@ -77,7 +77,7 @@ func (s *POSService) GetProducts(ctx context.Context, filters map[string]interfa
 
 func (s *POSService) SearchByName(ctx context.Context, name string) ([]model.Product, error) {
 
-	return  s.repo.SearchByName(ctx, name)
+	return s.repo.SearchByName(ctx, name)
 }
 
 func (s *POSService) GetProductByBarcode(ctx context.Context, barcodeID string) (*model.Product, error) {
@@ -106,4 +106,12 @@ func (s *POSService) GetLowStock(ctx context.Context) ([]model.Product, error) {
 
 func (s *POSService) GetByPriceRange(ctx context.Context, min, max float64) ([]model.Product, error) {
 	return s.repo.GetByPriceRange(ctx, min, max)
+}
+
+func (s *POSService) AddSpending(ctx context.Context, sp *model.Spending) error {
+	return s.repo.AddSpending(ctx, sp)
+}
+
+func (s *POSService) GetSpending(ctx context.Context, start, end string) ([]model.Spending, error) {
+	return s.repo.GetSpending(ctx, start, end)
 }

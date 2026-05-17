@@ -117,8 +117,8 @@ func (r *SQLiteRepository) fetchProducts(ctx context.Context, query string, args
 	for rows.Next() {
 		var p model.Product
 		err := rows.Scan(
-			&p.ID, &p.BarcodeID, &p.Name, &p.ImageURL, &p.Description, 
-			&p.TypeID, &p.PriceMMK, &p.StockQuantity, &p.CostPriceMMK, 
+			&p.ID, &p.BarcodeID, &p.Name, &p.ImageURL, &p.Description,
+			&p.TypeID, &p.PriceMMK, &p.StockQuantity, &p.CostPriceMMK,
 			&p.AlertStock, &p.ExpireAt, &p.CreatedAt,
 		)
 		if err != nil {
@@ -287,7 +287,7 @@ func (r *SQLiteRepository) GetTransactions(ctx context.Context, start, end strin
 
 func (r *SQLiteRepository) GetTransactionsByPeriod(ctx context.Context, start, end string) ([]model.Transaction, error) {
 	query := `SELECT transaction_id, total_amount_mmk, payment_method, items, cashier_id, timestamp FROM transactions WHERE timestamp BETWEEN ? AND ?`
-	
+
 	rows, err := r.db.QueryContext(ctx, query, start, end)
 	if err != nil {
 		return nil, err
@@ -315,4 +315,36 @@ func (r *SQLiteRepository) GetTransactionsByPeriod(ctx context.Context, start, e
 	}
 
 	return transactions, nil
+}
+
+func (r *SQLiteRepository) AddSpending(ctx context.Context, s *model.Spending) error {
+	query := `INSERT INTO spendings (id, info, amount) VALUES (?, ?, ?)`
+	_, err := r.db.ExecContext(ctx, query, s.ID, s.Info, s.Amount)
+	return err
+}
+
+func (r *SQLiteRepository) GetSpending(ctx context.Context, start, end string) ([]model.Spending, error) {
+	query := "SELECT * FROM spendings WHERE timestamp BETWEEN ? AND ?"
+	rows, err := r.db.QueryContext(ctx, query, start, end)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var spendings []model.Spending
+	for rows.Next() {
+		var s model.Spending
+		err := rows.Scan(&s.ID, &s.Amount, &s.Info)
+		if err != nil {
+			return nil, err
+		}
+
+		spendings = append(spendings, s)
+	}
+
+	if err = rows.Err(); err != nil {
+		return nil, err
+	}
+
+	return spendings, nil
 }

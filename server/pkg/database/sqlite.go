@@ -66,6 +66,12 @@ func createTables(db *sql.DB) error {
 			name TEXT NOT NULL,
 			timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
 		);`,
+		`CREATE TABLE IF NOT EXISTS spendings (
+			id TEXT PRIMARY KEY,
+			info TEXT,
+			amount INTEGER,
+			timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
+		)`,
 	}
 
 	for _, query := range queries {

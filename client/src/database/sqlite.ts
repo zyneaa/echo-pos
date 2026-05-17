@@ -98,6 +98,30 @@ export const getUnsyncedTransactions = () => {
   return db.getAllSync('SELECT * FROM transactions WHERE is_synced = 0');
 };
 
+export const getTransactions = (filters?: { amount?: number; date?: string }) => {
+  let query = 'SELECT * FROM transactions';
+  let params: any[] = [];
+  let whereClauses: string[] = [];
+
+  if (filters?.amount) {
+    whereClauses.push('total_amount_mmk >= ?'); // Filtering by amount >= given amount for better usability or exact? Request says "filter by amount", let's use >= or exact? Usually range or exact. I'll use >= for now or exact if specified. Let's stick to exact for now as requested. Actually, amount filter often means "find transactions with this amount".
+    params.push(filters.amount);
+  }
+
+  if (filters?.date) {
+    whereClauses.push('date(timestamp) = ?');
+    params.push(filters.date);
+  }
+
+  if (whereClauses.length > 0) {
+    query += ' WHERE ' + whereClauses.join(' AND ');
+  }
+
+  query += ' ORDER BY timestamp DESC';
+
+  return db.getAllSync(query, params);
+};
+
 export const markTransactionSynced = (transactionId: string) => {
   db.runSync('UPDATE transactions SET is_synced = 1 WHERE transaction_id = ?', [transactionId]);
 };

@@ -60,3 +60,10 @@ type Supplier struct {
 	Name       string    `json:"name" db:"name"`
 	Timestamp  time.Time `json:"timestamp" db:"timestamp"`
 }
+
+type Spending struct {
+	ID        string    `json:"id" db:"id"`
+	Info      string    `json:"info" db:"info"`
+	Amount    int64     `json:"amount" db:"amount"`
+	Timestamp time.Time `json:"timestamp" db:"timestamp"`
+}

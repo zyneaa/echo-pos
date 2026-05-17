@@ -30,18 +30,50 @@ export const syncTransactions = async () => {
   }
 };
 
-export const fetchProductsFromServer = async () => {
+export const fetchProductTypesFromServer = async () => {
+  const token = useAuthStore.getState().token;
+  try {
+    const response = await axios.get(`${API_URL}/product-types`, {
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+    });
+    return response.data;
+  } catch (error) {
+    console.error('Failed to fetch product types', error);
+    return [];
+  }
+};
+
+export const fetchProductsFromServer = async (filters?: { 
+  name?: string; 
+  type_id?: string; 
+  min_stock?: number; 
+  max_stock?: number; 
+  min_price?: number; 
+  max_price?: number; 
+  min_cost?: number; 
+  max_cost?: number; 
+  limit?: number; 
+  offset?: number; 
+}) => {
   const token = useAuthStore.getState().token;
   
-  // Fallback to local if not logged in
-  if (!token) {
-    console.log('No token, returning local products');
-    return getProducts();
-  }
-
   try {
-    const response = await axios.get(`${API_URL}/products`, {
-      headers: { Authorization: `Bearer ${token}` },
+    let url = `${API_URL}/products`;
+    const params = new URLSearchParams();
+    if (filters) {
+      Object.entries(filters).forEach(([key, value]) => {
+        if (value !== undefined && value !== null && value !== '') {
+          params.append(key, value.toString());
+        }
+      });
+    }
+
+    if (params.toString()) {
+      url += `?${params.toString()}`;
+    }
+
+    const response = await axios.get(url, {
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
     });
     return response.data;
   } catch (error) {
@@ -102,6 +134,41 @@ export const upsertProductToServer = async (product: any) => {
     upsertProduct(product);
   } catch (error) {
     console.error(`Failed to upsert product ${product.barcode_id} to server`, error);
+    throw error;
+  }
+};
+
+export const fetchTransactionsFromServer = async (filters?: { 
+  start?: string; 
+  end?: string; 
+  min_amount?: number;
+  limit?: number;
+  offset?: number;
+}) => {
+  const token = useAuthStore.getState().token;
+  if (!token) throw new Error('No auth token found');
+
+  try {
+    let url = `${API_URL}/transactions`;
+    const params = new URLSearchParams();
+    if (filters) {
+      Object.entries(filters).forEach(([key, value]) => {
+        if (value !== undefined && value !== null && value !== '') {
+          params.append(key, value.toString());
+        }
+      });
+    }
+    
+    if (params.toString()) {
+      url += `?${params.toString()}`;
+    }
+
+    const response = await axios.get(url, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    return response.data;
+  } catch (error) {
+    console.error('Failed to fetch transactions from server', error);
     throw error;
   }
 };
