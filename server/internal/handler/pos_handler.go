@@ -223,6 +223,38 @@ func (h *POSHandler) GetTransactions(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+func (h *POSHandler) CreateSpending(w http.ResponseWriter, r *http.Request) {
+	var s model.Spending
+	if err := json.NewDecoder(r.Body).Decode(&s); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	if err := h.svc.AddSpending(r.Context(), &s); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	w.WriteHeader(http.StatusCreated)
+}
+
+func (h *POSHandler) GetSpendings(w http.ResponseWriter, r *http.Request) {
+	start := r.URL.Query().Get("start")
+	end := r.URL.Query().Get("end")
+
+	spendings, err := h.svc.GetSpending(r.Context(), start, end)
+	if err != nil {
+		http.Error(w, "Failed to fetch transactions: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	if err := json.NewEncoder(w).Encode(spendings); err != nil {
+		http.Error(w, "Failed to encode JSON", http.StatusInternalServerError)
+	}
+}
+
 func (h *POSHandler) PingServer(w http.ResponseWriter, r *http.Request) {
 	currentTime := time.Now().Format(time.RFC3339)
 	json.NewEncoder(w).Encode(currentTime)

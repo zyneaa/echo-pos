@@ -63,6 +63,7 @@ func main() {
 		r.Get("/product-types", h.GetAllProductTypes)
 		r.Post("/transactions", h.CreateTransaction)
 		r.Get("/transactions", h.GetTransactions)
+		r.Post("/spending", h.CreateSpending)
 	})
 
 	port := os.Getenv("PORT")

@@ -112,6 +112,10 @@ func (s *POSService) AddSpending(ctx context.Context, sp *model.Spending) error 
 	return s.repo.AddSpending(ctx, sp)
 }
 
+func (s *POSService) CreateSpending(ctx context.Context, sp *model.Spending) error {
+	return s.repo.AddSpending(ctx, sp)
+}
+
 func (s *POSService) GetSpending(ctx context.Context, start, end string) ([]model.Spending, error) {
 	return s.repo.GetSpending(ctx, start, end)
 }
