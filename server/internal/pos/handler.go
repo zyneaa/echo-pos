@@ -1,63 +1,24 @@
-package handler
+package pos
 
 import (
 	"encoding/json"
-	"github.com/go-chi/chi/v5"
-	"github.com/zyneaa/pos-server/internal/model"
-	"github.com/zyneaa/pos-server/internal/service"
 	"net/http"
 	"strconv"
 	"time"
+
+	"github.com/go-chi/chi/v5"
 )
 
-type POSHandler struct {
-	svc *service.POSService
+type Handler struct {
+	svc *Service
 }
 
-func NewPOSHandler(svc *service.POSService) *POSHandler {
-	return &POSHandler{svc: svc}
+func NewHandler(svc *Service) *Handler {
+	return &Handler{svc: svc}
 }
 
-func (h *POSHandler) Register(w http.ResponseWriter, r *http.Request) {
-	var req struct {
-		Username string         `json:"username"`
-		Password string         `json:"password"`
-		Role     model.UserRole `json:"role"`
-	}
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
-		return
-	}
-
-	if err := h.svc.Register(r.Context(), req.Username, req.Password, req.Role); err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-
-	w.WriteHeader(http.StatusCreated)
-}
-
-func (h *POSHandler) Login(w http.ResponseWriter, r *http.Request) {
-	var req struct {
-		Username string `json:"username"`
-		Password string `json:"password"`
-	}
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
-		return
-	}
-
-	token, err := h.svc.Login(r.Context(), req.Username, req.Password)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusUnauthorized)
-		return
-	}
-
-	json.NewEncoder(w).Encode(map[string]string{"token": token})
-}
-
-func (h *POSHandler) CreateProductType(w http.ResponseWriter, r *http.Request) {
-	var t model.ProductType
+func (h *Handler) CreateProductType(w http.ResponseWriter, r *http.Request) {
+	var t ProductType
 	if err := json.NewDecoder(r.Body).Decode(&t); err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
@@ -71,7 +32,7 @@ func (h *POSHandler) CreateProductType(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusCreated)
 }
 
-func (h *POSHandler) GetAllProductTypes(w http.ResponseWriter, r *http.Request) {
+func (h *Handler) GetAllProductTypes(w http.ResponseWriter, r *http.Request) {
 	types, err := h.svc.GetAllProductTypes(r.Context())
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -81,8 +42,8 @@ func (h *POSHandler) GetAllProductTypes(w http.ResponseWriter, r *http.Request) 
 	json.NewEncoder(w).Encode(types)
 }
 
-func (h *POSHandler) UpsertProduct(w http.ResponseWriter, r *http.Request) {
-	var p model.Product
+func (h *Handler) UpsertProduct(w http.ResponseWriter, r *http.Request) {
+	var p Product
 	if err := json.NewDecoder(r.Body).Decode(&p); err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
@@ -96,7 +57,7 @@ func (h *POSHandler) UpsertProduct(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusOK)
 }
 
-func (h *POSHandler) GetProductByBarcode(w http.ResponseWriter, r *http.Request) {
+func (h *Handler) GetProductByBarcode(w http.ResponseWriter, r *http.Request) {
 	barcodeID := chi.URLParam(r, "barcodeID")
 	p, err := h.svc.GetProductByBarcode(r.Context(), barcodeID)
 	if err != nil {
@@ -107,7 +68,7 @@ func (h *POSHandler) GetProductByBarcode(w http.ResponseWriter, r *http.Request)
 	json.NewEncoder(w).Encode(p)
 }
 
-func (h *POSHandler) GetAllProducts(w http.ResponseWriter, r *http.Request) {
+func (h *Handler) GetAllProducts(w http.ResponseWriter, r *http.Request) {
 	filters := make(map[string]interface{})
 	query := r.URL.Query()
 
@@ -148,7 +109,7 @@ func (h *POSHandler) GetAllProducts(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(products)
 }
 
-func (h *POSHandler) SearchByName(w http.ResponseWriter, r *http.Request) {
+func (h *Handler) SearchByName(w http.ResponseWriter, r *http.Request) {
 	name := r.URL.Query().Get("name")
 	products, err := h.svc.SearchByName(r.Context(), name)
 	if err != nil {
@@ -158,7 +119,7 @@ func (h *POSHandler) SearchByName(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(products)
 }
 
-func (h *POSHandler) GetLowStock(w http.ResponseWriter, r *http.Request) {
+func (h *Handler) GetLowStock(w http.ResponseWriter, r *http.Request) {
 	products, err := h.svc.GetLowStock(r.Context())
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -167,7 +128,7 @@ func (h *POSHandler) GetLowStock(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(products)
 }
 
-func (h *POSHandler) GetByPriceRange(w http.ResponseWriter, r *http.Request) {
+func (h *Handler) GetByPriceRange(w http.ResponseWriter, r *http.Request) {
 	minStr := r.URL.Query().Get("min")
 	maxStr := r.URL.Query().Get("max")
 
@@ -182,8 +143,8 @@ func (h *POSHandler) GetByPriceRange(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(products)
 }
 
-func (h *POSHandler) CreateTransaction(w http.ResponseWriter, r *http.Request) {
-	var t model.Transaction
+func (h *Handler) CreateTransaction(w http.ResponseWriter, r *http.Request) {
+	var t Transaction
 	if err := json.NewDecoder(r.Body).Decode(&t); err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
@@ -197,7 +158,7 @@ func (h *POSHandler) CreateTransaction(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusCreated)
 }
 
-func (h *POSHandler) GetTransactions(w http.ResponseWriter, r *http.Request) {
+func (h *Handler) GetTransactions(w http.ResponseWriter, r *http.Request) {
 	start := r.URL.Query().Get("start")
 	end := r.URL.Query().Get("end")
 	minAmountStr := r.URL.Query().Get("min_amount")
@@ -223,8 +184,8 @@ func (h *POSHandler) GetTransactions(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func (h *POSHandler) CreateSpending(w http.ResponseWriter, r *http.Request) {
-	var s model.Spending
+func (h *Handler) CreateSpending(w http.ResponseWriter, r *http.Request) {
+	var s Spending
 	if err := json.NewDecoder(r.Body).Decode(&s); err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
@@ -238,13 +199,13 @@ func (h *POSHandler) CreateSpending(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusCreated)
 }
 
-func (h *POSHandler) GetSpendings(w http.ResponseWriter, r *http.Request) {
+func (h *Handler) GetSpendings(w http.ResponseWriter, r *http.Request) {
 	start := r.URL.Query().Get("start")
 	end := r.URL.Query().Get("end")
 
 	spendings, err := h.svc.GetSpending(r.Context(), start, end)
 	if err != nil {
-		http.Error(w, "Failed to fetch transactions: "+err.Error(), http.StatusInternalServerError)
+		http.Error(w, "Failed to fetch spendings: "+err.Error(), http.StatusInternalServerError)
 		return
 	}
 
@@ -255,7 +216,7 @@ func (h *POSHandler) GetSpendings(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func (h *POSHandler) PingServer(w http.ResponseWriter, r *http.Request) {
+func (h *Handler) PingServer(w http.ResponseWriter, r *http.Request) {
 	currentTime := time.Now().Format(time.RFC3339)
 	json.NewEncoder(w).Encode(currentTime)
 }

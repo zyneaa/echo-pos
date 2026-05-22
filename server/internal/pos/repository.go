@@ -1,41 +1,21 @@
-package repository
+package pos
 
 import (
 	"context"
 	"database/sql"
 	"encoding/json"
-	"github.com/zyneaa/pos-server/internal/model"
 )
 
-type SQLiteRepository struct {
+type Repository struct {
 	db *sql.DB
 }
 
-func NewSQLiteRepository(db *sql.DB) *SQLiteRepository {
-	return &SQLiteRepository{db: db}
-}
-
-// User Repository
-func (r *SQLiteRepository) GetUserByUsername(ctx context.Context, username string) (*model.User, error) {
-	query := `SELECT id, username, password_hash, role, created_at FROM users WHERE username = ?`
-	row := r.db.QueryRowContext(ctx, query, username)
-
-	var user model.User
-	err := row.Scan(&user.ID, &user.Username, &user.PasswordHash, &user.Role, &user.CreatedAt)
-	if err != nil {
-		return nil, err
-	}
-	return &user, nil
-}
-
-func (r *SQLiteRepository) CreateUser(ctx context.Context, user *model.User) error {
-	query := `INSERT INTO users (id, username, password_hash, role) VALUES (?, ?, ?, ?)`
-	_, err := r.db.ExecContext(ctx, query, user.ID, user.Username, user.PasswordHash, user.Role)
-	return err
+func NewRepository(db *sql.DB) *Repository {
+	return &Repository{db: db}
 }
 
 // Product Type Repository
-func (r *SQLiteRepository) GetAllProductTypes(ctx context.Context) ([]model.ProductType, error) {
+func (r *Repository) GetAllProductTypes(ctx context.Context) ([]ProductType, error) {
 	query := `SELECT id, type_name, created_at FROM product_types`
 	rows, err := r.db.QueryContext(ctx, query)
 	if err != nil {
@@ -43,9 +23,9 @@ func (r *SQLiteRepository) GetAllProductTypes(ctx context.Context) ([]model.Prod
 	}
 	defer rows.Close()
 
-	var types []model.ProductType
+	var types []ProductType
 	for rows.Next() {
-		var t model.ProductType
+		var t ProductType
 		err := rows.Scan(&t.ID, &t.TypeName, &t.CreatedAt)
 		if err != nil {
 			return nil, err
@@ -55,18 +35,18 @@ func (r *SQLiteRepository) GetAllProductTypes(ctx context.Context) ([]model.Prod
 	return types, nil
 }
 
-func (r *SQLiteRepository) CreateProductType(ctx context.Context, t *model.ProductType) error {
+func (r *Repository) CreateProductType(ctx context.Context, t *ProductType) error {
 	query := `INSERT INTO product_types (id, type_name) VALUES (?, ?)`
 	_, err := r.db.ExecContext(ctx, query, t.ID, t.TypeName)
 	return err
 }
 
 // Product Repository
-func (r *SQLiteRepository) GetProductByBarcode(ctx context.Context, barcodeID string) (*model.Product, error) {
+func (r *Repository) GetProductByBarcode(ctx context.Context, barcodeID string) (*Product, error) {
 	query := `SELECT id, barcode_id, name, image_url, description, type_id, price_mmk, stock_quantity, cost_price_mmk, alert_stock, expire_at, created_at FROM products WHERE barcode_id = ?`
 	row := r.db.QueryRowContext(ctx, query, barcodeID)
 
-	var p model.Product
+	var p Product
 	err := row.Scan(&p.ID, &p.BarcodeID, &p.Name, &p.ImageURL, &p.Description, &p.TypeID, &p.PriceMMK, &p.StockQuantity, &p.CostPriceMMK, &p.AlertStock, &p.ExpireAt, &p.CreatedAt)
 	if err != nil {
 		return nil, err
@@ -74,7 +54,7 @@ func (r *SQLiteRepository) GetProductByBarcode(ctx context.Context, barcodeID st
 	return &p, nil
 }
 
-func (r *SQLiteRepository) UpsertProduct(ctx context.Context, p *model.Product) error {
+func (r *Repository) UpsertProduct(ctx context.Context, p *Product) error {
 	query := `INSERT INTO products (id, barcode_id, name, image_url, description, type_id, price_mmk, stock_quantity, cost_price_mmk, alert_stock, expire_at)
 		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 		ON CONFLICT(barcode_id) DO UPDATE SET
@@ -91,31 +71,31 @@ func (r *SQLiteRepository) UpsertProduct(ctx context.Context, p *model.Product) 
 	return err
 }
 
-func (r *SQLiteRepository) SearchByName(ctx context.Context, name string) ([]model.Product, error) {
-	query := `SELECT * FROM products WHERE name LIKE ?`
+func (r *Repository) SearchByName(ctx context.Context, name string) ([]Product, error) {
+	query := `SELECT id, barcode_id, name, image_url, description, type_id, price_mmk, stock_quantity, cost_price_mmk, alert_stock, expire_at, created_at FROM products WHERE name LIKE ?`
 	return r.fetchProducts(ctx, query, "%"+name+"%")
 }
 
-func (r *SQLiteRepository) GetLowStock(ctx context.Context) ([]model.Product, error) {
-	query := `SELECT * FROM products WHERE stock_quantity <= alert_stock`
+func (r *Repository) GetLowStock(ctx context.Context) ([]Product, error) {
+	query := `SELECT id, barcode_id, name, image_url, description, type_id, price_mmk, stock_quantity, cost_price_mmk, alert_stock, expire_at, created_at FROM products WHERE stock_quantity <= alert_stock`
 	return r.fetchProducts(ctx, query)
 }
 
-func (r *SQLiteRepository) GetByPriceRange(ctx context.Context, min, max float64) ([]model.Product, error) {
-	query := `SELECT * FROM products WHERE price_mmk BETWEEN ? AND ?`
+func (r *Repository) GetByPriceRange(ctx context.Context, min, max float64) ([]Product, error) {
+	query := `SELECT id, barcode_id, name, image_url, description, type_id, price_mmk, stock_quantity, cost_price_mmk, alert_stock, expire_at, created_at FROM products WHERE price_mmk BETWEEN ? AND ?`
 	return r.fetchProducts(ctx, query, min, max)
 }
 
-func (r *SQLiteRepository) fetchProducts(ctx context.Context, query string, args ...any) ([]model.Product, error) {
+func (r *Repository) fetchProducts(ctx context.Context, query string, args ...any) ([]Product, error) {
 	rows, err := r.db.QueryContext(ctx, query, args...)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
 
-	var products []model.Product
+	var products []Product
 	for rows.Next() {
-		var p model.Product
+		var p Product
 		err := rows.Scan(
 			&p.ID, &p.BarcodeID, &p.Name, &p.ImageURL, &p.Description,
 			&p.TypeID, &p.PriceMMK, &p.StockQuantity, &p.CostPriceMMK,
@@ -129,7 +109,7 @@ func (r *SQLiteRepository) fetchProducts(ctx context.Context, query string, args
 	return products, rows.Err()
 }
 
-func (r *SQLiteRepository) GetAllProducts(ctx context.Context) ([]model.Product, error) {
+func (r *Repository) GetAllProducts(ctx context.Context) ([]Product, error) {
 	query := `SELECT id, barcode_id, name, image_url, description, type_id, price_mmk, stock_quantity, cost_price_mmk, alert_stock, expire_at, created_at FROM products`
 	rows, err := r.db.QueryContext(ctx, query)
 	if err != nil {
@@ -137,9 +117,9 @@ func (r *SQLiteRepository) GetAllProducts(ctx context.Context) ([]model.Product,
 	}
 	defer rows.Close()
 
-	var products []model.Product
+	var products []Product
 	for rows.Next() {
-		var p model.Product
+		var p Product
 		err := rows.Scan(&p.ID, &p.BarcodeID, &p.Name, &p.ImageURL, &p.Description, &p.TypeID, &p.PriceMMK, &p.StockQuantity, &p.CostPriceMMK, &p.AlertStock, &p.ExpireAt, &p.CreatedAt)
 		if err != nil {
 			return nil, err
@@ -149,7 +129,7 @@ func (r *SQLiteRepository) GetAllProducts(ctx context.Context) ([]model.Product,
 	return products, nil
 }
 
-func (r *SQLiteRepository) CreateTransaction(ctx context.Context, t *model.Transaction) error {
+func (r *Repository) CreateTransaction(ctx context.Context, t *Transaction) error {
 	itemsJSON, err := json.Marshal(t.Items)
 	if err != nil {
 		return err
@@ -179,7 +159,7 @@ func (r *SQLiteRepository) CreateTransaction(ctx context.Context, t *model.Trans
 	return tx.Commit()
 }
 
-func (r *SQLiteRepository) GetProducts(ctx context.Context, filters map[string]interface{}, limit, offset int) ([]model.Product, error) {
+func (r *Repository) GetProducts(ctx context.Context, filters map[string]interface{}, limit, offset int) ([]Product, error) {
 	query := `SELECT id, barcode_id, name, image_url, description, type_id, price_mmk, stock_quantity, cost_price_mmk, alert_stock, expire_at, created_at FROM products WHERE 1=1`
 	var args []interface{}
 
@@ -233,7 +213,7 @@ func (r *SQLiteRepository) GetProducts(ctx context.Context, filters map[string]i
 	return r.fetchProducts(ctx, query, args...)
 }
 
-func (r *SQLiteRepository) GetTransactions(ctx context.Context, start, end string, minAmount, limit, offset int) ([]model.Transaction, error) {
+func (r *Repository) GetTransactions(ctx context.Context, start, end string, minAmount, limit, offset int) ([]Transaction, error) {
 	query := `SELECT transaction_id, total_amount_mmk, payment_method, items, cashier_id, timestamp FROM transactions WHERE 1=1`
 	var args []interface{}
 
@@ -266,9 +246,9 @@ func (r *SQLiteRepository) GetTransactions(ctx context.Context, start, end strin
 	}
 	defer rows.Close()
 
-	var transactions []model.Transaction
+	var transactions []Transaction
 	for rows.Next() {
-		var t model.Transaction
+		var t Transaction
 		var itemsJSON string
 		err := rows.Scan(&t.TransactionID, &t.TotalAmountMMK, &t.PaymentMethod, &itemsJSON, &t.CashierID, &t.Timestamp)
 		if err != nil {
@@ -285,7 +265,7 @@ func (r *SQLiteRepository) GetTransactions(ctx context.Context, start, end strin
 	return transactions, rows.Err()
 }
 
-func (r *SQLiteRepository) GetTransactionsByPeriod(ctx context.Context, start, end string) ([]model.Transaction, error) {
+func (r *Repository) GetTransactionsByPeriod(ctx context.Context, start, end string) ([]Transaction, error) {
 	query := `SELECT transaction_id, total_amount_mmk, payment_method, items, cashier_id, timestamp FROM transactions WHERE timestamp BETWEEN ? AND ?`
 
 	rows, err := r.db.QueryContext(ctx, query, start, end)
@@ -294,9 +274,9 @@ func (r *SQLiteRepository) GetTransactionsByPeriod(ctx context.Context, start, e
 	}
 	defer rows.Close()
 
-	var transactions []model.Transaction
+	var transactions []Transaction
 	for rows.Next() {
-		var t model.Transaction
+		var t Transaction
 		var itemsJSON string
 		err := rows.Scan(&t.TransactionID, &t.TotalAmountMMK, &t.PaymentMethod, &itemsJSON, &t.CashierID, &t.Timestamp)
 		if err != nil {
@@ -317,24 +297,24 @@ func (r *SQLiteRepository) GetTransactionsByPeriod(ctx context.Context, start, e
 	return transactions, nil
 }
 
-func (r *SQLiteRepository) AddSpending(ctx context.Context, s *model.Spending) error {
+func (r *Repository) AddSpending(ctx context.Context, s *Spending) error {
 	query := `INSERT INTO spendings (id, info, amount) VALUES (?, ?, ?)`
 	_, err := r.db.ExecContext(ctx, query, s.ID, s.Info, s.Amount)
 	return err
 }
 
-func (r *SQLiteRepository) GetSpending(ctx context.Context, start, end string) ([]model.Spending, error) {
-	query := "SELECT * FROM spendings WHERE timestamp BETWEEN ? AND ?"
+func (r *Repository) GetSpending(ctx context.Context, start, end string) ([]Spending, error) {
+	query := "SELECT id, amount, info, timestamp FROM spendings WHERE timestamp BETWEEN ? AND ?"
 	rows, err := r.db.QueryContext(ctx, query, start, end)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
 
-	var spendings []model.Spending
+	var spendings []Spending
 	for rows.Next() {
-		var s model.Spending
-		err := rows.Scan(&s.ID, &s.Amount, &s.Info)
+		var s Spending
+		err := rows.Scan(&s.ID, &s.Amount, &s.Info, &s.Timestamp)
 		if err != nil {
 			return nil, err
 		}

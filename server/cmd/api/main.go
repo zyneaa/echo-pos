@@ -4,35 +4,39 @@ import (
 	"context"
 	"log"
 	"net/http"
-	"os"
 	"strings"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 
-	"github.com/zyneaa/pos-server/internal/handler"
-	"github.com/zyneaa/pos-server/internal/repository"
-	"github.com/zyneaa/pos-server/internal/service"
+	"github.com/zyneaa/pos-server/internal/config"
+	"github.com/zyneaa/pos-server/internal/database"
+	"github.com/zyneaa/pos-server/internal/pos"
+	"github.com/zyneaa/pos-server/internal/user"
 	"github.com/zyneaa/pos-server/pkg/auth"
 	"github.com/zyneaa/pos-server/pkg/backup"
-	"github.com/zyneaa/pos-server/pkg/database"
 )
 
 func main() {
-	dbPath := "pos.db"
-	db, err := database.InitDB(dbPath)
+	cfg := config.Load()
+
+	db, err := database.InitDB(cfg.DBPath)
 	if err != nil {
 		log.Fatalf("Failed to initialize database: %v", err)
 	}
 	defer db.Close()
 
-	repo := repository.NewSQLiteRepository(db)
-	svc := service.NewPOSService(repo)
-	h := handler.NewPOSHandler(svc)
+	userRepo := user.NewRepository(db)
+	userSvc := user.NewService(userRepo)
+	userH := user.NewHandler(userSvc)
+
+	posRepo := pos.NewRepository(db)
+	posSvc := pos.NewService(posRepo)
+	posH := pos.NewHandler(posSvc)
 
 	// Create initial admin for testing
 	go func() {
-		err := svc.Register(context.Background(), "admin", "admin123", "Admin")
+		err := userSvc.Register(context.Background(), "admin", "admin123", user.RoleAdmin)
 		if err != nil {
 			log.Printf("Admin user already exists or failed to create: %v", err)
 		} else {
@@ -41,38 +45,33 @@ func main() {
 	}()
 
 	// Start daily backup
-	backup.StartBackupCron(dbPath)
+	backup.StartBackupCron(cfg.DBPath)
 
 	r := chi.NewRouter()
 	r.Use(middleware.Logger)
 	r.Use(middleware.Recoverer)
 
-	r.Get("/ping", h.PingServer)
-	r.Post("/register", h.Register)
-	r.Post("/login", h.Login)
+	r.Get("/ping", posH.PingServer)
+	r.Post("/register", userH.Register)
+	r.Post("/login", userH.Login)
 
 	r.Group(func(r chi.Router) {
 		r.Use(JWTMiddleware)
-		r.Post("/products", h.UpsertProduct)
-		r.Get("/products", h.GetAllProducts)
-		r.Get("/products/search", h.SearchByName)
-		r.Get("/products/low-stock", h.GetLowStock)
-		r.Get("/products/price-range", h.GetByPriceRange)
-		r.Get("/products/{barcodeID}", h.GetProductByBarcode)
-		r.Post("/product-types", h.CreateProductType)
-		r.Get("/product-types", h.GetAllProductTypes)
-		r.Post("/transactions", h.CreateTransaction)
-		r.Get("/transactions", h.GetTransactions)
-		r.Post("/spending", h.CreateSpending)
+		r.Post("/products", posH.UpsertProduct)
+		r.Get("/products", posH.GetAllProducts)
+		r.Get("/products/search", posH.SearchByName)
+		r.Get("/products/low-stock", posH.GetLowStock)
+		r.Get("/products/price-range", posH.GetByPriceRange)
+		r.Get("/products/{barcodeID}", posH.GetProductByBarcode)
+		r.Post("/product-types", posH.CreateProductType)
+		r.Get("/product-types", posH.GetAllProductTypes)
+		r.Post("/transactions", posH.CreateTransaction)
+		r.Get("/transactions", posH.GetTransactions)
+		r.Post("/spending", posH.CreateSpending)
 	})
 
-	port := os.Getenv("PORT")
-	if port == "" {
-		port = "8080"
-	}
-
-	log.Printf("Server starting on port %s", port)
-	if err := http.ListenAndServe("0.0.0.0:"+port, r); err != nil {
+	log.Printf("Server starting on port %s", cfg.Port)
+	if err := http.ListenAndServe("0.0.0.0:"+cfg.Port, r); err != nil {
 		log.Fatalf("Server failed: %v", err)
 	}
 }

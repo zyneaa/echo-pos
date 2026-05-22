@@ -45,12 +45,9 @@ func createTables(db *sql.DB) error {
 			stock_quantity INTEGER NOT NULL,
 			cost_price_mmk INTEGER NOT NULL,
 			alert_stock INTEGER NOT NULL,
-			supplier_TEXT,
 			expire_at DATETIME DEFAULT CURRENT_TIMESTAMP,
 			created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-			FOREIGN KEY(type_id) REFERENCES product_types(id),
-			FOREIGN KEY(supplier_id) REFERENCES suppliers(id)
-
+			FOREIGN KEY(type_id) REFERENCES product_types(id)
 		);`,
 		`CREATE TABLE IF NOT EXISTS transactions (
 			transaction_id TEXT PRIMARY KEY,
@@ -64,12 +61,20 @@ func createTables(db *sql.DB) error {
 		`CREATE TABLE IF NOT EXISTS suppliers (
 			supplier_id TEXT PRIMARY KEY,
 			name TEXT NOT NULL,
-			timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
+			timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
 		);`,
 		`CREATE TABLE IF NOT EXISTS spendings (
 			id TEXT PRIMARY KEY,
 			info TEXT,
 			amount INTEGER,
+			timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
+		)`,
+		`CREATE TABLE IF NOT EXISTS deliveries (
+			id TEXT PRIMARY KEY,
+			destination TEXT NOT NULL,
+			items TEXT NOT NULL, -- JSON
+			total_amount_mmk INTEGER NOT NULL,
+			delivered INTEGER NOT NULL,
 			timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
 		)`,
 	}
