@@ -4,11 +4,15 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/zyneaa/server/internal/middlewares"
+	"golang.org/x/time/rate"
 	"net/http"
 )
 
 func (s *Server) RegisterRoutes() http.Handler {
 	r := chi.NewRouter()
+
+	limiter := middlewares.NewRateLimiter(rate.Limit(5), 10)
+	r.Use(limiter.Limit)
 
 	r.Use(middleware.Logger)
 	r.Use(middleware.Recoverer)

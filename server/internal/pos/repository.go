@@ -215,7 +215,7 @@ func (r *Repository) GetProducts(ctx context.Context, filters map[string]interfa
 
 func (r *Repository) GetTransactions(ctx context.Context, start, end string, minAmount, limit, offset int) ([]Transaction, error) {
 	query := `SELECT transaction_id, total_amount_mmk, payment_method, items, cashier_id, timestamp FROM transactions WHERE 1=1`
-	var args []interface{}
+	var args []any
 
 	if start != "" && end != "" {
 		query += ` AND timestamp BETWEEN ? AND ?`
