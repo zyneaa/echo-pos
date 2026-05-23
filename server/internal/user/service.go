@@ -7,7 +7,7 @@ import (
 	"github.com/google/uuid"
 	"golang.org/x/crypto/bcrypt"
 
-	"github.com/zyneaa/pos-server/pkg/auth"
+	"github.com/zyneaa/server/pkg/auth"
 )
 
 type Service struct {

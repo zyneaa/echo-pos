@@ -1,4 +1,4 @@
-module github.com/zyneaa/pos-server
+module github.com/zyneaa/server
 
 go 1.25.5
 
