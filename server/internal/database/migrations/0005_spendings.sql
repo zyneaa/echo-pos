@@ -1,0 +1,6 @@
+CREATE TABLE IF NOT EXISTS spendings (
+    id TEXT PRIMARY KEY,
+    info TEXT,
+    amount INTEGER NOT NULL,
+    timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
+);
