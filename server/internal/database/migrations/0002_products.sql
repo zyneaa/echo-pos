@@ -4,10 +4,24 @@ CREATE TABLE IF NOT EXISTS product_types (
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP
 );
 
+CREATE TABLE IF NOT EXISTS product_tags (
+    id TEXT PRIMARY KEY,
+    tag_name TEXT UNIQUE NOT NULL,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS product_tag_mappings (
+    product_id TEXT NOT NULL,
+    tag_id TEXT NOT NULL,
+    PRIMARY KEY (product_id, tag_id),
+    FOREIGN KEY(product_id) REFERENCES products(id) ON DELETE CASCADE,
+    FOREIGN KEY(tag_id) REFERENCES product_tags(id) ON DELETE CASCADE
+);
+
 CREATE TABLE IF NOT EXISTS products (
     id TEXT PRIMARY KEY,
     barcode_id TEXT UNIQUE NOT NULL,
-    name TEXT NOT NULL,
+    product_name TEXT NOT NULL,
     image_url TEXT,
     description TEXT,
     type_id TEXT,
@@ -22,3 +36,4 @@ CREATE TABLE IF NOT EXISTS products (
 
 CREATE INDEX IF NOT EXISTS idx_products_barcode ON products(barcode_id);
 CREATE INDEX IF NOT EXISTS idx_products_alert ON products(stock_quantity, alert_stock);
+CREATE INDEX IF NOT EXISTS idx_product_tag_mappings_tag ON product_tag_mappings(tag_id);
