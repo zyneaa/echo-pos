@@ -2,88 +2,59 @@ package database
 
 import (
 	"database/sql"
-	"log"
+	"embed"
+	"fmt"
+	"io/fs"
 	_ "modernc.org/sqlite"
+	"path/filepath"
 )
 
-func InitDB(dbPath string) (*sql.DB, error) {
-	db, err := sql.Open("sqlite", dbPath)
+var migrationFS embed.FS
+
+type DB struct {
+	*sql.DB
+}
+
+func InitDB(dbPath string) (*DB, error) {
+	sqlDB, err := sql.Open("sqlite", dbPath)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to open sqlite db: %w", err)
 	}
 
-	err = createTables(db)
-	if err != nil {
+	if _, err := sqlDB.Exec("PRAGMA foreign_keys = ON;"); err != nil {
+		sqlDB.Close()
+		return nil, fmt.Errorf("failed to enable foreign keys: %w", err)
+	}
+
+	db := &DB{sqlDB}
+
+	if err := db.runMigrations(); err != nil {
+		db.Close()
 		return nil, err
 	}
 
 	return db, nil
 }
 
-func createTables(db *sql.DB) error {
-	queries := []string{
-		`CREATE TABLE IF NOT EXISTS users (
-			id TEXT PRIMARY KEY,
-			username TEXT UNIQUE NOT NULL,
-			password_hash TEXT NOT NULL,
-			role TEXT NOT NULL,
-			created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-		);`,
-		`CREATE TABLE IF NOT EXISTS product_types (
-			id TEXT PRIMARY KEY,
-			type_name TEXT UNIQUE NOT NULL,
-			created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-		);`,
-		`CREATE TABLE IF NOT EXISTS products (
-			id TEXT PRIMARY KEY,
-			barcode_id TEXT UNIQUE NOT NULL,
-			name TEXT NOT NULL,
-			image_url TEXT,
-			description TEXT,
-			type_id TEXT,
-			price_mmk INTEGER NOT NULL,
-			stock_quantity INTEGER NOT NULL,
-			cost_price_mmk INTEGER NOT NULL,
-			alert_stock INTEGER NOT NULL,
-			expire_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-			created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-			FOREIGN KEY(type_id) REFERENCES product_types(id)
-		);`,
-		`CREATE TABLE IF NOT EXISTS transactions (
-			transaction_id TEXT PRIMARY KEY,
-			total_amount_mmk INTEGER NOT NULL,
-			payment_method TEXT NOT NULL,
-			items TEXT NOT NULL, -- JSON
-			timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
-			cashier_id TEXT,
-			FOREIGN KEY(cashier_id) REFERENCES users(id)
-		);`,
-		`CREATE TABLE IF NOT EXISTS suppliers (
-			supplier_id TEXT PRIMARY KEY,
-			name TEXT NOT NULL,
-			timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
-		);`,
-		`CREATE TABLE IF NOT EXISTS spendings (
-			id TEXT PRIMARY KEY,
-			info TEXT,
-			amount INTEGER,
-			timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
-		)`,
-		`CREATE TABLE IF NOT EXISTS deliveries (
-			id TEXT PRIMARY KEY,
-			destination TEXT NOT NULL,
-			items TEXT NOT NULL, -- JSON
-			total_amount_mmk INTEGER NOT NULL,
-			delivered INTEGER NOT NULL,
-			timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
-		)`,
+func (db *DB) runMigrations() error {
+	files, err := fs.ReadDir(migrationFS, "migrations")
+	if err != nil {
+		return fmt.Errorf("failed to read migrations dir: %w", err)
 	}
 
-	for _, query := range queries {
-		_, err := db.Exec(query)
+	for _, file := range files {
+		if file.IsDir() || filepath.Ext(file.Name()) != ".sql" {
+			continue
+		}
+
+		content, err := migrationFS.ReadFile("migrations/" + file.Name())
 		if err != nil {
-			log.Printf("Error creating table: %v\nQuery: %s", err, query)
-			return err
+			return fmt.Errorf("failed to read migration file %s: %w", file.Name(), err)
+		}
+
+		_, err = db.Exec(string(content))
+		if err != nil {
+			return fmt.Errorf("migration failed in %s: %w", file.Name(), err)
 		}
 	}
 

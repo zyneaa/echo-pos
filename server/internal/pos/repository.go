@@ -2,19 +2,18 @@ package pos
 
 import (
 	"context"
-	"database/sql"
 	"encoding/json"
+	"github.com/zyneaa/server/internal/database"
 )
 
 type Repository struct {
-	db *sql.DB
+	db *database.DB
 }
 
-func NewRepository(db *sql.DB) *Repository {
+func NewRepository(db *database.DB) *Repository {
 	return &Repository{db: db}
 }
 
-// Product Type Repository
 func (r *Repository) GetAllProductTypes(ctx context.Context) ([]ProductType, error) {
 	query := `SELECT id, type_name, created_at FROM product_types`
 	rows, err := r.db.QueryContext(ctx, query)

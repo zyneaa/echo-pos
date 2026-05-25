@@ -2,14 +2,14 @@ package user
 
 import (
 	"context"
-	"database/sql"
+	"github.com/zyneaa/server/internal/database"
 )
 
 type Repository struct {
-	db *sql.DB
+	db *database.DB
 }
 
-func NewRepository(db *sql.DB) *Repository {
+func NewRepository(db *database.DB) *Repository {
 	return &Repository{db: db}
 }
 
