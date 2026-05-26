@@ -4,7 +4,7 @@ CREATE TABLE IF NOT EXISTS suppliers (
     contact_info TEXT,
     spent_amount INTEGER NOT NULL,
     time_bought INTEGER NOT NULL,
-    timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
 );
 
 CREATE TABLE IF NOT EXISTS inventory_logs (
@@ -13,7 +13,7 @@ CREATE TABLE IF NOT EXISTS inventory_logs (
     supplier_id TEXT,
     quantity_added INTEGER NOT NULL,
     cost_price_mmk INTEGER NOT NULL,
-    timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY(product_id) REFERENCES products(id),
     FOREIGN KEY(supplier_id) REFERENCES suppliers(id)
 );

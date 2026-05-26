@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 )
 
+//go:embed migrations/*.sql
 var migrationFS embed.FS
 
 type DB struct {

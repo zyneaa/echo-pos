@@ -2,13 +2,14 @@ package main
 
 import (
 	"context"
+	"log"
+
 	"github.com/zyneaa/server/internal/config"
 	"github.com/zyneaa/server/internal/database"
 	"github.com/zyneaa/server/internal/pos"
 	"github.com/zyneaa/server/internal/server"
 	"github.com/zyneaa/server/internal/user"
 	"github.com/zyneaa/server/pkg/backup"
-	"log"
 )
 
 func main() {

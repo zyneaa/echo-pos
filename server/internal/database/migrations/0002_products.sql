@@ -10,14 +10,6 @@ CREATE TABLE IF NOT EXISTS product_tags (
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP
 );
 
-CREATE TABLE IF NOT EXISTS product_tag_mappings (
-    product_id TEXT NOT NULL,
-    tag_id TEXT NOT NULL,
-    PRIMARY KEY (product_id, tag_id),
-    FOREIGN KEY(product_id) REFERENCES products(id) ON DELETE CASCADE,
-    FOREIGN KEY(tag_id) REFERENCES product_tags(id) ON DELETE CASCADE
-);
-
 CREATE TABLE IF NOT EXISTS products (
     id TEXT PRIMARY KEY,
     barcode_id TEXT UNIQUE NOT NULL,
@@ -32,6 +24,14 @@ CREATE TABLE IF NOT EXISTS products (
     expire_at DATETIME,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY(type_id) REFERENCES product_types(id)
+);
+
+CREATE TABLE IF NOT EXISTS product_tag_mappings (
+    product_id TEXT NOT NULL,
+    tag_id TEXT NOT NULL,
+    PRIMARY KEY (product_id, tag_id),
+    FOREIGN KEY(product_id) REFERENCES products(id) ON DELETE CASCADE,
+    FOREIGN KEY(tag_id) REFERENCES product_tags(id) ON DELETE CASCADE
 );
 
 CREATE INDEX IF NOT EXISTS idx_products_barcode ON products(barcode_id);
