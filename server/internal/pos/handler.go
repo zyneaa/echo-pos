@@ -69,7 +69,7 @@ func (h *Handler) GetProductByBarcode(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) GetAllProducts(w http.ResponseWriter, r *http.Request) {
-	filters := make(map[string]interface{})
+	filters := make(map[string]any)
 	query := r.URL.Query()
 
 	if name := query.Get("name"); name != "" {
@@ -143,14 +143,14 @@ func (h *Handler) GetByPriceRange(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(products)
 }
 
-func (h *Handler) CreateTransaction(w http.ResponseWriter, r *http.Request) {
+func (h *Handler) HandleCreateTransaction(w http.ResponseWriter, r *http.Request) {
 	var t Transaction
 	if err := json.NewDecoder(r.Body).Decode(&t); err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
+		http.Error(w, "invalid request body", http.StatusBadRequest)
 		return
 	}
 
-	if err := h.svc.CreateTransaction(r.Context(), &t); err != nil {
+	if err := h.svc.ProcessCheckout(r.Context(), &t); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}

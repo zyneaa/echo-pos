@@ -10,10 +10,21 @@ type ProductType struct {
 	CreatedAt time.Time `json:"created_at" db:"created_at"`
 }
 
+type ProductTag struct {
+	ID        string    `json:"id" db:"id"`
+	TagName   string    `json:"tag_name" db:"tag_name"`
+	CreatedAt time.Time `json:"created_at" db:"created_at"`
+}
+
+type ProductTagMapping struct {
+	ProductID string `json:"productid" db:"product_id"`
+	TagID     string `json:"tag_id" db:"tag_id"`
+}
+
 type Product struct {
 	ID            string    `json:"id" db:"id"`
 	BarcodeID     string    `json:"barcode_id" db:"barcode_id"`
-	Name          string    `json:"name" db:"name"`
+	ProductName   string    `json:"product_name" db:"product_name"`
 	ImageURL      string    `json:"image_url" db:"image_url"`
 	Description   string    `json:"description" db:"description"`
 	TypeID        string    `json:"type_id" db:"type_id"`
@@ -25,25 +36,21 @@ type Product struct {
 	CreatedAt     time.Time `json:"created_at" db:"created_at"`
 }
 
-type TransactionItem struct {
-	ProductID         string `json:"product_id"`
-	Quantity          int    `json:"quantity"`
-	PriceAtTimeOfSale int    `json:"price_at_time_of_sale"`
-}
-
 type Transaction struct {
-	TransactionID  string            `json:"transaction_id" db:"transaction_id"`
+	ID             string            `json:"id" db:"id"`
 	TotalAmountMMK int               `json:"total_amount_mmk" db:"total_amount_mmk"`
 	PaymentMethod  string            `json:"payment_method" db:"payment_method"`
-	Items          []TransactionItem `json:"items" db:"items"`
-	Timestamp      time.Time         `json:"timestamp" db:"timestamp"`
 	CashierID      string            `json:"cashier_id" db:"cashier_id"`
+	CreatedAt      time.Time         `json:"created_at" db:"created_at"`
+	Items          []TransactionItem `json:"items" db:"-"`
 }
 
-type Supplier struct {
-	SupplierId string    `json:"supplier_id" db:"supplier_id"`
-	Name       string    `json:"name" db:"name"`
-	Timestamp  time.Time `json:"timestamp" db:"timestamp"`
+type TransactionItem struct {
+	ID            string `json:"id" db:"id"`
+	TransactionID string `json:"transaction_id" db:"transaction_id"`
+	ProductID     string `json:"product_id" db:"product_id"`
+	Quantity      int    `json:"quantity"`
+	UnitPriceMMK  int    `json:"unit_price_mmk" db:"unit_price_mmk"`
 }
 
 type Spending struct {
@@ -51,4 +58,10 @@ type Spending struct {
 	Info      string    `json:"info" db:"info"`
 	Amount    int64     `json:"amount" db:"amount"`
 	Timestamp time.Time `json:"timestamp" db:"timestamp"`
+}
+
+type Supplier struct {
+	SupplierId string    `json:"supplier_id" db:"supplier_id"`
+	Name       string    `json:"name" db:"name"`
+	Timestamp  time.Time `json:"timestamp" db:"timestamp"`
 }

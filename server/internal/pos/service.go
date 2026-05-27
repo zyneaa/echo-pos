@@ -2,6 +2,7 @@ package pos
 
 import (
 	"context"
+	"database/sql"
 
 	"github.com/google/uuid"
 )
@@ -48,16 +49,38 @@ func (s *Service) GetAllProducts(ctx context.Context) ([]Product, error) {
 	return s.repo.GetAllProducts(ctx)
 }
 
-func (s *Service) CreateTransaction(ctx context.Context, t *Transaction) error {
-	return s.repo.CreateTransaction(ctx, t)
+func (s *Service) CreateTransaction(ctx context.Context, tx *sql.Tx, t *Transaction) error {
+	return s.repo.CreateTransaction(ctx, tx, t)
+}
+
+func (s *Service) InsertTransactionItems(ctx context.Context, tx *sql.Tx, txID string, items []TransactionItem) error {
+	return s.repo.InsertTransactionItems(ctx, tx, txID, items)
+}
+
+func (s *Service) ProcessCheckout(ctx context.Context, t *Transaction) error {
+	tx, err := s.repo.BeginTransaction(ctx)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+
+	if err := s.CreateTransaction(ctx, tx, t); err != nil {
+		return err
+	}
+
+	if err := s.InsertTransactionItems(ctx, tx, t.ID, t.Items); err != nil {
+		return err
+	}
+
+	if err := tx.Commit(); err != nil {
+		return err
+	}
+
+	return nil
 }
 
 func (s *Service) GetTransactions(ctx context.Context, start, end string, minAmount, limit, offset int) ([]Transaction, error) {
 	return s.repo.GetTransactions(ctx, start, end, minAmount, limit, offset)
-}
-
-func (s *Service) GetTransactionByPeriod(ctx context.Context, start, end string) ([]Transaction, error) {
-	return s.repo.GetTransactionsByPeriod(ctx, start, end)
 }
 
 func (s *Service) GetLowStock(ctx context.Context) ([]Product, error) {

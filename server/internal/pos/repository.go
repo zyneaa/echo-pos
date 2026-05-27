@@ -2,7 +2,9 @@ package pos
 
 import (
 	"context"
-	"encoding/json"
+	"database/sql"
+	"time"
+
 	"github.com/zyneaa/server/internal/database"
 )
 
@@ -12,6 +14,14 @@ type Repository struct {
 
 func NewRepository(db *database.DB) *Repository {
 	return &Repository{db: db}
+}
+
+func (r *Repository) BeginTransaction(ctx context.Context) (*sql.Tx, error) {
+	tx, err := r.db.BeginTx(ctx, nil)
+	if err != nil {
+		return nil, err
+	}
+	return tx, nil
 }
 
 func (r *Repository) GetAllProductTypes(ctx context.Context) ([]ProductType, error) {
@@ -46,7 +56,7 @@ func (r *Repository) GetProductByBarcode(ctx context.Context, barcodeID string) 
 	row := r.db.QueryRowContext(ctx, query, barcodeID)
 
 	var p Product
-	err := row.Scan(&p.ID, &p.BarcodeID, &p.Name, &p.ImageURL, &p.Description, &p.TypeID, &p.PriceMMK, &p.StockQuantity, &p.CostPriceMMK, &p.AlertStock, &p.ExpireAt, &p.CreatedAt)
+	err := row.Scan(&p.ID, &p.BarcodeID, &p.ProductName, &p.ImageURL, &p.Description, &p.TypeID, &p.PriceMMK, &p.StockQuantity, &p.CostPriceMMK, &p.AlertStock, &p.ExpireAt, &p.CreatedAt)
 	if err != nil {
 		return nil, err
 	}
@@ -54,10 +64,10 @@ func (r *Repository) GetProductByBarcode(ctx context.Context, barcodeID string) 
 }
 
 func (r *Repository) UpsertProduct(ctx context.Context, p *Product) error {
-	query := `INSERT INTO products (id, barcode_id, name, image_url, description, type_id, price_mmk, stock_quantity, cost_price_mmk, alert_stock, expire_at)
+	query := `INSERT INTO products (id, barcode_id, product_name, image_url, description, type_id, price_mmk, stock_quantity, cost_price_mmk, alert_stock, expire_at)
 		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 		ON CONFLICT(barcode_id) DO UPDATE SET
-		name=excluded.name,
+		product_name=excluded.product_name,
 		image_url=excluded.image_url,
 		description=excluded.description,
 		type_id=excluded.type_id,
@@ -66,22 +76,22 @@ func (r *Repository) UpsertProduct(ctx context.Context, p *Product) error {
 		cost_price_mmk=excluded.cost_price_mmk,
 		alert_stock=excluded.alert_stock,
 		expire_at=excluded.expire_at`
-	_, err := r.db.ExecContext(ctx, query, p.ID, p.BarcodeID, p.Name, p.ImageURL, p.Description, p.TypeID, p.PriceMMK, p.StockQuantity, p.CostPriceMMK, p.AlertStock, p.ExpireAt)
+	_, err := r.db.ExecContext(ctx, query, p.ID, p.BarcodeID, p.ProductName, p.ImageURL, p.Description, p.TypeID, p.PriceMMK, p.StockQuantity, p.CostPriceMMK, p.AlertStock, p.ExpireAt)
 	return err
 }
 
 func (r *Repository) SearchByName(ctx context.Context, name string) ([]Product, error) {
-	query := `SELECT id, barcode_id, name, image_url, description, type_id, price_mmk, stock_quantity, cost_price_mmk, alert_stock, expire_at, created_at FROM products WHERE name LIKE ?`
+	query := `SELECT id, barcode_id, product_name, image_url, description, type_id, price_mmk, stock_quantity, cost_price_mmk, alert_stock, expire_at, created_at FROM products WHERE product_name LIKE ?`
 	return r.fetchProducts(ctx, query, "%"+name+"%")
 }
 
 func (r *Repository) GetLowStock(ctx context.Context) ([]Product, error) {
-	query := `SELECT id, barcode_id, name, image_url, description, type_id, price_mmk, stock_quantity, cost_price_mmk, alert_stock, expire_at, created_at FROM products WHERE stock_quantity <= alert_stock`
+	query := `SELECT id, barcode_id, product_name, image_url, description, type_id, price_mmk, stock_quantity, cost_price_mmk, alert_stock, expire_at, created_at FROM products WHERE stock_quantity <= alert_stock`
 	return r.fetchProducts(ctx, query)
 }
 
 func (r *Repository) GetByPriceRange(ctx context.Context, min, max float64) ([]Product, error) {
-	query := `SELECT id, barcode_id, name, image_url, description, type_id, price_mmk, stock_quantity, cost_price_mmk, alert_stock, expire_at, created_at FROM products WHERE price_mmk BETWEEN ? AND ?`
+	query := `SELECT id, barcode_id, product_name, image_url, description, type_id, price_mmk, stock_quantity, cost_price_mmk, alert_stock, expire_at, created_at FROM products WHERE price_mmk BETWEEN ? AND ?`
 	return r.fetchProducts(ctx, query, min, max)
 }
 
@@ -96,7 +106,7 @@ func (r *Repository) fetchProducts(ctx context.Context, query string, args ...an
 	for rows.Next() {
 		var p Product
 		err := rows.Scan(
-			&p.ID, &p.BarcodeID, &p.Name, &p.ImageURL, &p.Description,
+			&p.ID, &p.BarcodeID, &p.ProductName, &p.ImageURL, &p.Description,
 			&p.TypeID, &p.PriceMMK, &p.StockQuantity, &p.CostPriceMMK,
 			&p.AlertStock, &p.ExpireAt, &p.CreatedAt,
 		)
@@ -109,7 +119,7 @@ func (r *Repository) fetchProducts(ctx context.Context, query string, args ...an
 }
 
 func (r *Repository) GetAllProducts(ctx context.Context) ([]Product, error) {
-	query := `SELECT id, barcode_id, name, image_url, description, type_id, price_mmk, stock_quantity, cost_price_mmk, alert_stock, expire_at, created_at FROM products`
+	query := `SELECT id, barcode_id, product_name, image_url, description, type_id, price_mmk, stock_quantity, cost_price_mmk, alert_stock, expire_at, created_at FROM products`
 	rows, err := r.db.QueryContext(ctx, query)
 	if err != nil {
 		return nil, err
@@ -119,7 +129,7 @@ func (r *Repository) GetAllProducts(ctx context.Context) ([]Product, error) {
 	var products []Product
 	for rows.Next() {
 		var p Product
-		err := rows.Scan(&p.ID, &p.BarcodeID, &p.Name, &p.ImageURL, &p.Description, &p.TypeID, &p.PriceMMK, &p.StockQuantity, &p.CostPriceMMK, &p.AlertStock, &p.ExpireAt, &p.CreatedAt)
+		err := rows.Scan(&p.ID, &p.BarcodeID, &p.ProductName, &p.ImageURL, &p.Description, &p.TypeID, &p.PriceMMK, &p.StockQuantity, &p.CostPriceMMK, &p.AlertStock, &p.ExpireAt, &p.CreatedAt)
 		if err != nil {
 			return nil, err
 		}
@@ -128,34 +138,51 @@ func (r *Repository) GetAllProducts(ctx context.Context) ([]Product, error) {
 	return products, nil
 }
 
-func (r *Repository) CreateTransaction(ctx context.Context, t *Transaction) error {
-	itemsJSON, err := json.Marshal(t.Items)
+func (r *Repository) CreateTransaction(ctx context.Context, tx *sql.Tx, t *Transaction) error {
+	query := `
+		INSERT INTO transactions (id, total_amount_mmk, payment_method, cashier_id)
+		VALUES (?, ?, ?, ?);`
+
+	_, err := tx.ExecContext(ctx, query, t.ID, t.TotalAmountMMK, t.PaymentMethod, t.CashierID)
 	if err != nil {
 		return err
 	}
+	return nil
+}
 
-	tx, err := r.db.BeginTx(ctx, nil)
+func (r *Repository) InsertTransactionItems(ctx context.Context, tx *sql.Tx, txID string, items []TransactionItem) error {
+	itemQuery := `
+		INSERT INTO transaction_items (id, transaction_id, product_id, quantity, unit_price_mmk)
+		VALUES (?, ?, ?, ?, ?);`
+
+	stockQuery := `
+		UPDATE products SET stock_quantity = stock_quantity - ? WHERE id = ?;`
+
+	stmtItem, err := tx.PrepareContext(ctx, itemQuery)
 	if err != nil {
 		return err
 	}
-	defer tx.Rollback()
+	defer stmtItem.Close()
 
-	query := `INSERT INTO transactions (transaction_id, total_amount_mmk, payment_method, items, cashier_id) VALUES (?, ?, ?, ?, ?)`
-	_, err = tx.ExecContext(ctx, query, t.TransactionID, t.TotalAmountMMK, t.PaymentMethod, string(itemsJSON), t.CashierID)
+	stmtStock, err := tx.PrepareContext(ctx, stockQuery)
 	if err != nil {
 		return err
 	}
+	defer stmtStock.Close()
 
-	// Decrement stock for each item
-	for _, item := range t.Items {
-		updateStockQuery := `UPDATE products SET stock_quantity = stock_quantity - ? WHERE id = ?`
-		_, err = tx.ExecContext(ctx, updateStockQuery, item.Quantity, item.ProductID)
+	for _, item := range items {
+		_, err = stmtItem.ExecContext(ctx, item.ID, txID, item.ProductID, item.Quantity, item.UnitPriceMMK)
+		if err != nil {
+			return err
+		}
+
+		_, err = stmtStock.ExecContext(ctx, item.Quantity, item.ProductID)
 		if err != nil {
 			return err
 		}
 	}
 
-	return tx.Commit()
+	return nil
 }
 
 func (r *Repository) GetProducts(ctx context.Context, filters map[string]interface{}, limit, offset int) ([]Product, error) {
@@ -213,84 +240,100 @@ func (r *Repository) GetProducts(ctx context.Context, filters map[string]interfa
 }
 
 func (r *Repository) GetTransactions(ctx context.Context, start, end string, minAmount, limit, offset int) ([]Transaction, error) {
-	query := `SELECT transaction_id, total_amount_mmk, payment_method, items, cashier_id, timestamp FROM transactions WHERE 1=1`
+	baseQuery := `
+		SELECT 
+			t.id, t.total_amount_mmk, t.payment_method, t.cashier_id, t.created_at,
+			ti.id, ti.product_id, ti.quantity, ti.unit_price_mmk
+		FROM (
+			SELECT id, total_amount_mmk, payment_method, cashier_id, created_at
+			FROM transactions
+			WHERE 1=1`
+
 	var args []any
 
 	if start != "" && end != "" {
-		query += ` AND timestamp BETWEEN ? AND ?`
+		baseQuery += ` AND created_at BETWEEN ? AND ?`
 		args = append(args, start, end)
 	} else if start != "" {
-		query += ` AND timestamp >= ?`
+		baseQuery += ` AND created_at >= ?`
 		args = append(args, start)
 	} else if end != "" {
-		query += ` AND timestamp <= ?`
+		baseQuery += ` AND created_at <= ?`
 		args = append(args, end)
 	}
 
 	if minAmount > 0 {
-		query += ` AND total_amount_mmk >= ?`
+		baseQuery += ` AND total_amount_mmk >= ?`
 		args = append(args, minAmount)
 	}
 
-	query += ` ORDER BY timestamp DESC`
+	baseQuery += ` ORDER BY created_at DESC`
 
 	if limit > 0 {
-		query += ` LIMIT ? OFFSET ?`
+		baseQuery += ` LIMIT ? OFFSET ?`
 		args = append(args, limit, offset)
 	}
 
-	rows, err := r.db.QueryContext(ctx, query, args...)
+	baseQuery += `) t
+	LEFT JOIN transaction_items ti ON t.id = ti.transaction_id
+	ORDER BY t.created_at DESC`
+
+	rows, err := r.db.QueryContext(ctx, baseQuery, args...)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
 
 	var transactions []Transaction
+	txMap := make(map[string]*Transaction)
+	var txIDs []string
+
 	for rows.Next() {
-		var t Transaction
-		var itemsJSON string
-		err := rows.Scan(&t.TransactionID, &t.TotalAmountMMK, &t.PaymentMethod, &itemsJSON, &t.CashierID, &t.Timestamp)
+		var tID, tPayment string
+		var tCreatedAt time.Time
+		var tAmount int
+		var tCashier sql.NullString
+
+		var itemID, itemProdID sql.NullString
+		var itemQty, itemPrice sql.NullInt64
+
+		err := rows.Scan(
+			&tID, &tAmount, &tPayment, &tCashier, &tCreatedAt,
+			&itemID, &itemProdID, &itemQty, &itemPrice,
+		)
 		if err != nil {
 			return nil, err
 		}
 
-		if err := json.Unmarshal([]byte(itemsJSON), &t.Items); err != nil {
-			return nil, err
+		if _, exists := txMap[tID]; !exists {
+			txMap[tID] = &Transaction{
+				ID:             tID,
+				TotalAmountMMK: tAmount,
+				PaymentMethod:  tPayment,
+				CashierID:      tCashier.String,
+				CreatedAt:      tCreatedAt,
+				Items:          []TransactionItem{},
+			}
+			txIDs = append(txIDs, tID)
 		}
 
-		transactions = append(transactions, t)
+		if itemID.Valid {
+			txMap[tID].Items = append(txMap[tID].Items, TransactionItem{
+				ID:            itemID.String,
+				TransactionID: tID,
+				ProductID:     itemProdID.String,
+				Quantity:      int(itemQty.Int64),
+				UnitPriceMMK:  int(itemPrice.Int64),
+			})
+		}
 	}
 
-	return transactions, rows.Err()
-}
-
-func (r *Repository) GetTransactionsByPeriod(ctx context.Context, start, end string) ([]Transaction, error) {
-	query := `SELECT transaction_id, total_amount_mmk, payment_method, items, cashier_id, timestamp FROM transactions WHERE timestamp BETWEEN ? AND ?`
-
-	rows, err := r.db.QueryContext(ctx, query, start, end)
-	if err != nil {
+	if err := rows.Err(); err != nil {
 		return nil, err
 	}
-	defer rows.Close()
 
-	var transactions []Transaction
-	for rows.Next() {
-		var t Transaction
-		var itemsJSON string
-		err := rows.Scan(&t.TransactionID, &t.TotalAmountMMK, &t.PaymentMethod, &itemsJSON, &t.CashierID, &t.Timestamp)
-		if err != nil {
-			return nil, err
-		}
-
-		if err := json.Unmarshal([]byte(itemsJSON), &t.Items); err != nil {
-			return nil, err
-		}
-
-		transactions = append(transactions, t)
-	}
-
-	if err = rows.Err(); err != nil {
-		return nil, err
+	for _, id := range txIDs {
+		transactions = append(transactions, *txMap[id])
 	}
 
 	return transactions, nil
