@@ -38,7 +38,7 @@ type Product struct {
 
 type Transaction struct {
 	ID             string            `json:"id" db:"id"`
-	TotalAmountMMK int               `json:"total_amount_mmk" db:"total_amount_mmk"`
+	TotalAmountMMK uint64            `json:"total_amount_mmk" db:"total_amount_mmk"`
 	PaymentMethod  string            `json:"payment_method" db:"payment_method"`
 	CashierID      string            `json:"cashier_id" db:"cashier_id"`
 	CreatedAt      time.Time         `json:"created_at" db:"created_at"`

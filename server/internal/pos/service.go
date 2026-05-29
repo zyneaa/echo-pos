@@ -3,9 +3,8 @@ package pos
 import (
 	"context"
 	"database/sql"
-	"errors"
 
-	"github.com/google/uuid"
+	"github.com/oklog/ulid/v2"
 )
 
 type Service struct {
@@ -18,7 +17,7 @@ func NewService(repo *Repository) *Service {
 
 func (s *Service) CreateProductType(ctx context.Context, t *ProductType) error {
 	if t.ID == "" {
-		t.ID = uuid.New().String()
+		t.ID = ulid.Make().String()
 	}
 	return s.repo.CreateProductType(ctx, t)
 }
@@ -29,7 +28,7 @@ func (s *Service) GetAllProductTypes(ctx context.Context) ([]ProductType, error)
 
 func (s *Service) UpsertProduct(ctx context.Context, p *Product) error {
 	if p.ID == "" {
-		p.ID = uuid.New().String()
+		p.ID = ulid.Make().String()
 	}
 	return s.repo.UpsertProduct(ctx, p)
 }
@@ -42,8 +41,8 @@ func (s *Service) GetProductByBarcode(ctx context.Context, barcodeID string) (*P
 	return s.repo.GetProductByBarcode(ctx, barcodeID)
 }
 
-func (s *Service) CreateTransaction(ctx context.Context, tx *sql.Tx, t *Transaction) error {
-	return s.repo.CreateTransaction(ctx, tx, t)
+func (s *Service) CreateTransaction(ctx context.Context, tx *sql.Tx, t *Transaction, tID string) error {
+	return s.repo.CreateTransaction(ctx, tx, t, tID)
 }
 
 func (s *Service) InsertTransactionItems(ctx context.Context, tx *sql.Tx, txID string, items []TransactionItem) error {
@@ -57,29 +56,29 @@ func (s *Service) ProcessCheckout(ctx context.Context, t *Transaction) error {
 	}
 	defer tx.Rollback()
 
-	var calculatedTotal int
+	tID := ulid.Make().String()
+
+	var calculatedTotal uint64
 	for i, item := range t.Items {
 		prod, err := s.repo.GetProductByID(ctx, item.ProductID)
 		if err != nil {
 			return err
 		}
 
+		t.Items[i].ID = ulid.Make().String()
 		t.Items[i].UnitPriceMMK = prod.PriceMMK
+		t.Items[i].TransactionID = &tID
 
-		calculatedTotal += prod.PriceMMK * item.Quantity
-	}
-
-	if t.TotalAmountMMK != calculatedTotal {
-		return errors.New("total amount doesn't match")
+		calculatedTotal += uint64(prod.PriceMMK * item.Quantity)
 	}
 
 	t.TotalAmountMMK = calculatedTotal
 
-	if err := s.CreateTransaction(ctx, tx, t); err != nil {
+	if err := s.CreateTransaction(ctx, tx, t, tID); err != nil {
 		return err
 	}
 
-	if err := s.InsertTransactionItems(ctx, tx, t.ID, t.Items); err != nil {
+	if err := s.InsertTransactionItems(ctx, tx, tID, t.Items); err != nil {
 		return err
 	}
 

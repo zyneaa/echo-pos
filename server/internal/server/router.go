@@ -32,7 +32,7 @@ func (s *Server) RegisterRoutes() http.Handler {
 		r.Post("/product-types", s.posH.CreateProductType)
 		r.Get("/product-types", s.posH.GetAllProductTypes)
 
-		r.Post("/transactions", s.posH.CreateTransaction)
+		r.Post("/transactions", s.posH.ProcessCheckout)
 		r.Get("/transactions", s.posH.GetTransactions)
 
 		r.Post("/spending", s.posH.CreateSpending)

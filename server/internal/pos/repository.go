@@ -123,12 +123,12 @@ func (r *Repository) FetchProducts(ctx context.Context, query string, args ...an
 	return products, rows.Err()
 }
 
-func (r *Repository) CreateTransaction(ctx context.Context, tx *sql.Tx, t *Transaction) error {
+func (r *Repository) CreateTransaction(ctx context.Context, tx *sql.Tx, t *Transaction, tID string) error {
 	query := `
 		INSERT INTO transactions (id, total_amount_mmk, payment_method, cashier_id)
 		VALUES (?, ?, ?, ?);`
 
-	_, err := tx.ExecContext(ctx, query, t.ID, t.TotalAmountMMK, t.PaymentMethod, t.CashierID)
+	_, err := tx.ExecContext(ctx, query, tID, t.TotalAmountMMK, t.PaymentMethod, t.CashierID)
 	if err != nil {
 		return err
 	}
@@ -275,7 +275,7 @@ func (r *Repository) GetTransactions(ctx context.Context, start, end string, min
 	for rows.Next() {
 		var tID, tPayment string
 		var tCreatedAt time.Time
-		var tAmount int
+		var tAmount uint64
 		var tCashier sql.NullString
 
 		var itemID, itemProdID sql.NullString

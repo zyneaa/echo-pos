@@ -121,7 +121,7 @@ func (h *Handler) GetLowStock(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(products)
 }
 
-func (h *Handler) CreateTransaction(w http.ResponseWriter, r *http.Request) {
+func (h *Handler) ProcessCheckout(w http.ResponseWriter, r *http.Request) {
 	var t Transaction
 	if err := json.NewDecoder(r.Body).Decode(&t); err != nil {
 		http.Error(w, "invalid request body", http.StatusBadRequest)

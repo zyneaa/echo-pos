@@ -5,7 +5,7 @@ import (
 	"errors"
 	"log"
 
-	"github.com/google/uuid"
+	"github.com/oklog/ulid/v2"
 	"golang.org/x/crypto/bcrypt"
 
 	"github.com/zyneaa/server/pkg/auth"
@@ -26,7 +26,7 @@ func (s *Service) Register(ctx context.Context, username, password string, role 
 	}
 
 	user := &User{
-		ID:           uuid.New().String(),
+		ID:           ulid.Make().String(),
 		Username:     username,
 		PasswordHash: string(hashedPassword),
 		Role:         role,

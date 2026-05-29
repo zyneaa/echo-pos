@@ -19,6 +19,10 @@ run: fmt vet
 	@echo "Starting local development server..."
 	cd server && go run cmd/api/main.go
 
+.PHONY: seed
+seed:
+	cd server && go run cmd/seed/main.go
+
 .PHONY: test
 test:
 	@echo "Running unit tests inside server/..."
