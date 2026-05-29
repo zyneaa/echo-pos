@@ -3,6 +3,7 @@ package pos
 import (
 	"context"
 	"database/sql"
+	"errors"
 
 	"github.com/google/uuid"
 )
@@ -33,20 +34,12 @@ func (s *Service) UpsertProduct(ctx context.Context, p *Product) error {
 	return s.repo.UpsertProduct(ctx, p)
 }
 
-func (s *Service) GetProducts(ctx context.Context, filters map[string]interface{}, limit, offset int) ([]Product, error) {
+func (s *Service) GetProducts(ctx context.Context, filters map[string]any, limit, offset int) ([]Product, error) {
 	return s.repo.GetProducts(ctx, filters, limit, offset)
-}
-
-func (s *Service) SearchByName(ctx context.Context, name string) ([]Product, error) {
-	return s.repo.SearchByName(ctx, name)
 }
 
 func (s *Service) GetProductByBarcode(ctx context.Context, barcodeID string) (*Product, error) {
 	return s.repo.GetProductByBarcode(ctx, barcodeID)
-}
-
-func (s *Service) GetAllProducts(ctx context.Context) ([]Product, error) {
-	return s.repo.GetAllProducts(ctx)
 }
 
 func (s *Service) CreateTransaction(ctx context.Context, tx *sql.Tx, t *Transaction) error {
@@ -63,6 +56,24 @@ func (s *Service) ProcessCheckout(ctx context.Context, t *Transaction) error {
 		return err
 	}
 	defer tx.Rollback()
+
+	var calculatedTotal int
+	for i, item := range t.Items {
+		prod, err := s.repo.GetProductByID(ctx, item.ProductID)
+		if err != nil {
+			return err
+		}
+
+		t.Items[i].UnitPriceMMK = prod.PriceMMK
+
+		calculatedTotal += prod.PriceMMK * item.Quantity
+	}
+
+	if t.TotalAmountMMK != calculatedTotal {
+		return errors.New("total amount doesn't match")
+	}
+
+	t.TotalAmountMMK = calculatedTotal
 
 	if err := s.CreateTransaction(ctx, tx, t); err != nil {
 		return err
@@ -85,10 +96,6 @@ func (s *Service) GetTransactions(ctx context.Context, start, end string, minAmo
 
 func (s *Service) GetLowStock(ctx context.Context) ([]Product, error) {
 	return s.repo.GetLowStock(ctx)
-}
-
-func (s *Service) GetByPriceRange(ctx context.Context, min, max float64) ([]Product, error) {
-	return s.repo.GetByPriceRange(ctx, min, max)
 }
 
 func (s *Service) AddSpending(ctx context.Context, sp *Spending) error {

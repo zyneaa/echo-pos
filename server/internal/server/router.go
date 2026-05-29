@@ -25,10 +25,8 @@ func (s *Server) RegisterRoutes() http.Handler {
 		r.Use(middlewares.JWTMiddleware)
 
 		r.Post("/products", s.posH.UpsertProduct)
-		r.Get("/products", s.posH.GetAllProducts)
-		r.Get("/products/search", s.posH.SearchByName)
+		r.Get("/products", s.posH.GetProducts)
 		r.Get("/products/low-stock", s.posH.GetLowStock)
-		r.Get("/products/price-range", s.posH.GetByPriceRange)
 		r.Get("/products/{barcodeID}", s.posH.GetProductByBarcode)
 
 		r.Post("/product-types", s.posH.CreateProductType)

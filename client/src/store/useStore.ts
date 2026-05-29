@@ -44,9 +44,19 @@ export const useAuthStore = create<AuthState>((set) => ({
   user: null,
 
   login: async (username, password) => {
-    const response = await axios.post(`${Config.apiUrl}/login`, { username, password });
-    const token = response.data.token;
-    set({ token });
+    try {
+      const response = await axios.post(`${Config.apiUrl}/login`,
+        { username: username, password: password }
+      );
+      console.log(response.data);
+
+      const token = response.data.token || response.data;
+
+      set({ token });
+    } catch (error: any) {
+      console.error("Zustand Login Error:", error.message || error);
+      throw error; // Re-throw so HomeScreen's try/catch can catch it
+    }
   },
 
   logout: () => set({ token: null, user: null }),

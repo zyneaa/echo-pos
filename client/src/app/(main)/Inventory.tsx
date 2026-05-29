@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
     StyleSheet,
     View,
@@ -12,26 +12,24 @@ import {
     ScrollView
 } from 'react-native';
 import { Colors } from '@/constants/theme';
-import { 
-    Search, 
-    Plus, 
-    Package, 
-    RefreshCcw, 
-    Edit2, 
-    X, 
-    Info, 
-    Calendar, 
-    DollarSign, 
-    Layers, 
+import {
+    Search,
+    Plus,
+    Package,
+    RefreshCcw,
+    Edit2,
+    X,
+    Info,
+    Calendar,
+    DollarSign,
+    Layers,
     Filter,
-    Check,
-    ChevronDown
 } from 'lucide-react-native';
 import { fetchAndSyncProducts, fetchProductsFromServer, fetchProductTypesFromServer } from '@/api/sync';
 import { useRouter } from 'expo-router';
 import { globalStyle } from '@/constants/globalStyle';
 
-const { width, height } = Dimensions.get('window');
+const { height } = Dimensions.get('window');
 const PAGE_SIZE = 10;
 
 const ProductCard = ({ item, onPress, onEdit }: { item: any; onPress: () => void; onEdit: () => void }) => {
@@ -219,14 +217,14 @@ export default function InventoryScreen() {
                     <ScrollView style={styles.modalBody}>
                         <Text style={styles.filterLabel}>PRODUCT TYPE</Text>
                         <View style={styles.typeGrid}>
-                            <Pressable 
+                            <Pressable
                                 style={[styles.typeItem, filters.type_id === '' && styles.typeItemActive]}
                                 onPress={() => setFilters(prev => ({ ...prev, type_id: '' }))}
                             >
                                 <Text style={[styles.typeText, filters.type_id === '' && styles.typeTextActive]}>ALL</Text>
                             </Pressable>
                             {productTypes.map(t => (
-                                <Pressable 
+                                <Pressable
                                     key={t.id}
                                     style={[styles.typeItem, filters.type_id === t.id && styles.typeItemActive]}
                                     onPress={() => setFilters(prev => ({ ...prev, type_id: t.id }))}
@@ -238,7 +236,7 @@ export default function InventoryScreen() {
 
                         <Text style={styles.filterLabel}>STOCK QUANTITY</Text>
                         <View style={styles.inputRow}>
-                            <TextInput 
+                            <TextInput
                                 style={[styles.filterInput, { flex: 1 }]}
                                 placeholder="MIN"
                                 keyboardType="numeric"
@@ -246,7 +244,7 @@ export default function InventoryScreen() {
                                 onChangeText={text => setFilters(prev => ({ ...prev, min_stock: text }))}
                             />
                             <Text style={styles.inputSeparator}>-</Text>
-                            <TextInput 
+                            <TextInput
                                 style={[styles.filterInput, { flex: 1 }]}
                                 placeholder="MAX"
                                 keyboardType="numeric"
@@ -257,7 +255,7 @@ export default function InventoryScreen() {
 
                         <Text style={styles.filterLabel}>SELL PRICE (MMK)</Text>
                         <View style={styles.inputRow}>
-                            <TextInput 
+                            <TextInput
                                 style={[styles.filterInput, { flex: 1 }]}
                                 placeholder="MIN"
                                 keyboardType="numeric"
@@ -265,7 +263,7 @@ export default function InventoryScreen() {
                                 onChangeText={text => setFilters(prev => ({ ...prev, min_price: text }))}
                             />
                             <Text style={styles.inputSeparator}>-</Text>
-                            <TextInput 
+                            <TextInput
                                 style={[styles.filterInput, { flex: 1 }]}
                                 placeholder="MAX"
                                 keyboardType="numeric"
@@ -302,8 +300,8 @@ export default function InventoryScreen() {
                             onChangeText={setSearch}
                         />
                     </View>
-                    <Pressable 
-                        style={[styles.actionButton, activeFilters && Object.keys(activeFilters).length > 0 && { backgroundColor: '#FFFF00' }]} 
+                    <Pressable
+                        style={[styles.actionButton, activeFilters && Object.keys(activeFilters).length > 0 && { backgroundColor: '#FFFF00' }]}
                         onPress={() => setIsFilterVisible(true)}
                     >
                         <Filter size={24} color={Colors.text} strokeWidth={3} />

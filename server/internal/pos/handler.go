@@ -2,6 +2,7 @@ package pos
 
 import (
 	"encoding/json"
+	"log"
 	"net/http"
 	"strconv"
 	"time"
@@ -68,11 +69,11 @@ func (h *Handler) GetProductByBarcode(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(p)
 }
 
-func (h *Handler) GetAllProducts(w http.ResponseWriter, r *http.Request) {
+func (h *Handler) GetProducts(w http.ResponseWriter, r *http.Request) {
 	filters := make(map[string]any)
 	query := r.URL.Query()
 
-	if name := query.Get("name"); name != "" {
+	if name := query.Get("product_name"); name != "" {
 		filters["name"] = name
 	}
 	if typeID := query.Get("type_id"); typeID != "" {
@@ -100,22 +101,14 @@ func (h *Handler) GetAllProducts(w http.ResponseWriter, r *http.Request) {
 	limit, _ := strconv.Atoi(query.Get("limit"))
 	offset, _ := strconv.Atoi(query.Get("offset"))
 
+	log.Printf("%v %v %v", filters, limit, offset)
+
 	products, err := h.svc.GetProducts(r.Context(), filters, limit, offset)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
-	json.NewEncoder(w).Encode(products)
-}
-
-func (h *Handler) SearchByName(w http.ResponseWriter, r *http.Request) {
-	name := r.URL.Query().Get("name")
-	products, err := h.svc.SearchByName(r.Context(), name)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
 	json.NewEncoder(w).Encode(products)
 }
 
@@ -128,22 +121,7 @@ func (h *Handler) GetLowStock(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(products)
 }
 
-func (h *Handler) GetByPriceRange(w http.ResponseWriter, r *http.Request) {
-	minStr := r.URL.Query().Get("min")
-	maxStr := r.URL.Query().Get("max")
-
-	min, _ := strconv.ParseFloat(minStr, 64)
-	max, _ := strconv.ParseFloat(maxStr, 64)
-
-	products, err := h.svc.GetByPriceRange(r.Context(), min, max)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-	json.NewEncoder(w).Encode(products)
-}
-
-func (h *Handler) HandleCreateTransaction(w http.ResponseWriter, r *http.Request) {
+func (h *Handler) CreateTransaction(w http.ResponseWriter, r *http.Request) {
 	var t Transaction
 	if err := json.NewDecoder(r.Body).Decode(&t); err != nil {
 		http.Error(w, "invalid request body", http.StatusBadRequest)

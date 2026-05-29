@@ -52,7 +52,7 @@ func (r *Repository) CreateProductType(ctx context.Context, t *ProductType) erro
 
 // Product Repository
 func (r *Repository) GetProductByBarcode(ctx context.Context, barcodeID string) (*Product, error) {
-	query := `SELECT id, barcode_id, name, image_url, description, type_id, price_mmk, stock_quantity, cost_price_mmk, alert_stock, expire_at, created_at FROM products WHERE barcode_id = ?`
+	query := `SELECT id, barcode_id, product_name, image_url, description, type_id, price_mmk, stock_quantity, cost_price_mmk, alert_stock, expire_at, created_at FROM products WHERE barcode_id = ?`
 	row := r.db.QueryRowContext(ctx, query, barcodeID)
 
 	var p Product
@@ -60,6 +60,20 @@ func (r *Repository) GetProductByBarcode(ctx context.Context, barcodeID string) 
 	if err != nil {
 		return nil, err
 	}
+
+	return &p, nil
+}
+
+func (r *Repository) GetProductByID(ctx context.Context, ID string) (*Product, error) {
+	query := `SELECT id, barcode_id, product_name, image_url, description, type_id, price_mmk, stock_quantity, cost_price_mmk, alert_stock, expire_at, created_at FROM products WHERE id = ?`
+	row := r.db.QueryRowContext(ctx, query, ID)
+
+	var p Product
+	err := row.Scan(&p.ID, &p.BarcodeID, &p.ProductName, &p.ImageURL, &p.Description, &p.TypeID, &p.PriceMMK, &p.StockQuantity, &p.CostPriceMMK, &p.AlertStock, &p.ExpireAt, &p.CreatedAt)
+	if err != nil {
+		return nil, err
+	}
+
 	return &p, nil
 }
 
@@ -77,25 +91,16 @@ func (r *Repository) UpsertProduct(ctx context.Context, p *Product) error {
 		alert_stock=excluded.alert_stock,
 		expire_at=excluded.expire_at`
 	_, err := r.db.ExecContext(ctx, query, p.ID, p.BarcodeID, p.ProductName, p.ImageURL, p.Description, p.TypeID, p.PriceMMK, p.StockQuantity, p.CostPriceMMK, p.AlertStock, p.ExpireAt)
-	return err
-}
 
-func (r *Repository) SearchByName(ctx context.Context, name string) ([]Product, error) {
-	query := `SELECT id, barcode_id, product_name, image_url, description, type_id, price_mmk, stock_quantity, cost_price_mmk, alert_stock, expire_at, created_at FROM products WHERE product_name LIKE ?`
-	return r.fetchProducts(ctx, query, "%"+name+"%")
+	return err
 }
 
 func (r *Repository) GetLowStock(ctx context.Context) ([]Product, error) {
 	query := `SELECT id, barcode_id, product_name, image_url, description, type_id, price_mmk, stock_quantity, cost_price_mmk, alert_stock, expire_at, created_at FROM products WHERE stock_quantity <= alert_stock`
-	return r.fetchProducts(ctx, query)
+	return r.FetchProducts(ctx, query)
 }
 
-func (r *Repository) GetByPriceRange(ctx context.Context, min, max float64) ([]Product, error) {
-	query := `SELECT id, barcode_id, product_name, image_url, description, type_id, price_mmk, stock_quantity, cost_price_mmk, alert_stock, expire_at, created_at FROM products WHERE price_mmk BETWEEN ? AND ?`
-	return r.fetchProducts(ctx, query, min, max)
-}
-
-func (r *Repository) fetchProducts(ctx context.Context, query string, args ...any) ([]Product, error) {
+func (r *Repository) FetchProducts(ctx context.Context, query string, args ...any) ([]Product, error) {
 	rows, err := r.db.QueryContext(ctx, query, args...)
 	if err != nil {
 		return nil, err
@@ -118,26 +123,6 @@ func (r *Repository) fetchProducts(ctx context.Context, query string, args ...an
 	return products, rows.Err()
 }
 
-func (r *Repository) GetAllProducts(ctx context.Context) ([]Product, error) {
-	query := `SELECT id, barcode_id, product_name, image_url, description, type_id, price_mmk, stock_quantity, cost_price_mmk, alert_stock, expire_at, created_at FROM products`
-	rows, err := r.db.QueryContext(ctx, query)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-
-	var products []Product
-	for rows.Next() {
-		var p Product
-		err := rows.Scan(&p.ID, &p.BarcodeID, &p.ProductName, &p.ImageURL, &p.Description, &p.TypeID, &p.PriceMMK, &p.StockQuantity, &p.CostPriceMMK, &p.AlertStock, &p.ExpireAt, &p.CreatedAt)
-		if err != nil {
-			return nil, err
-		}
-		products = append(products, p)
-	}
-	return products, nil
-}
-
 func (r *Repository) CreateTransaction(ctx context.Context, tx *sql.Tx, t *Transaction) error {
 	query := `
 		INSERT INTO transactions (id, total_amount_mmk, payment_method, cashier_id)
@@ -155,8 +140,7 @@ func (r *Repository) InsertTransactionItems(ctx context.Context, tx *sql.Tx, txI
 		INSERT INTO transaction_items (id, transaction_id, product_id, quantity, unit_price_mmk)
 		VALUES (?, ?, ?, ?, ?);`
 
-	stockQuery := `
-		UPDATE products SET stock_quantity = stock_quantity - ? WHERE id = ?;`
+	stockQuery := `UPDATE products SET stock_quantity = stock_quantity - ? WHERE id = ?;`
 
 	stmtItem, err := tx.PrepareContext(ctx, itemQuery)
 	if err != nil {
@@ -185,12 +169,12 @@ func (r *Repository) InsertTransactionItems(ctx context.Context, tx *sql.Tx, txI
 	return nil
 }
 
-func (r *Repository) GetProducts(ctx context.Context, filters map[string]interface{}, limit, offset int) ([]Product, error) {
-	query := `SELECT id, barcode_id, name, image_url, description, type_id, price_mmk, stock_quantity, cost_price_mmk, alert_stock, expire_at, created_at FROM products WHERE 1=1`
-	var args []interface{}
+func (r *Repository) GetProducts(ctx context.Context, filters map[string]any, limit, offset int) ([]Product, error) {
+	query := `SELECT id, barcode_id, product_name, image_url, description, type_id, price_mmk, stock_quantity, cost_price_mmk, alert_stock, expire_at, created_at FROM products WHERE 1=1`
+	var args []any
 
-	if val, ok := filters["name"]; ok && val != "" {
-		query += ` AND (name LIKE ? OR barcode_id LIKE ?)`
+	if val, ok := filters["product_name"]; ok && val != "" {
+		query += ` AND (product_name LIKE ? OR barcode_id LIKE ?)`
 		args = append(args, "%"+val.(string)+"%", "%"+val.(string)+"%")
 	}
 
@@ -236,7 +220,7 @@ func (r *Repository) GetProducts(ctx context.Context, filters map[string]interfa
 		args = append(args, limit, offset)
 	}
 
-	return r.fetchProducts(ctx, query, args...)
+	return r.FetchProducts(ctx, query, args...)
 }
 
 func (r *Repository) GetTransactions(ctx context.Context, start, end string, minAmount, limit, offset int) ([]Transaction, error) {
@@ -320,7 +304,7 @@ func (r *Repository) GetTransactions(ctx context.Context, start, end string, min
 		if itemID.Valid {
 			txMap[tID].Items = append(txMap[tID].Items, TransactionItem{
 				ID:            itemID.String,
-				TransactionID: tID,
+				TransactionID: &tID,
 				ProductID:     itemProdID.String,
 				Quantity:      int(itemQty.Int64),
 				UnitPriceMMK:  int(itemPrice.Int64),

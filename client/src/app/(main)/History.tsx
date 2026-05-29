@@ -27,17 +27,19 @@ import { globalStyle } from '@/constants/globalStyle';
 const PAGE_SIZE = 10;
 
 interface TransactionItem {
+  id: string;
+  transaction_id: string;
   product_id: string;
   quantity: number;
-  price_at_time_of_sale: number;
+  unit_price_mmk: number;
 }
 
 interface Transaction {
-  transaction_id: string;
+  id: string;
   total_amount_mmk: number;
   payment_method: string;
   items: TransactionItem[];
-  timestamp: string;
+  created_at: string;
   cashier_id: string;
 }
 
@@ -144,13 +146,13 @@ export default function HistoryScreen() {
           )}
           <Text style={styles.methodText}>{item.payment_method}</Text>
         </View>
-        <Text style={styles.timestampText}>{new Date(item.timestamp).toLocaleString()}</Text>
+        <Text style={styles.timestampText}>{new Date(item.created_at).toLocaleString()}</Text>
       </View>
       <View style={styles.transactionBody}>
         <Text style={styles.amountText}>{item.total_amount_mmk.toLocaleString()} MMK</Text>
         <ArrowRight size={20} color={Colors.text} />
       </View>
-      <Text style={styles.idText}>ID: {item.transaction_id.slice(0, 8)}...</Text>
+      <Text style={styles.idText}>ID: {item.id.slice(0, 8)}...</Text>
     </Pressable>
   );
 
@@ -176,7 +178,7 @@ export default function HistoryScreen() {
             <ScrollView style={styles.modalBody}>
               <View style={styles.detailSection}>
                 <Text style={styles.detailLabel}>TIMESTAMP</Text>
-                <Text style={styles.detailValue}>{new Date(selectedTransaction.timestamp).toLocaleString()}</Text>
+                <Text style={styles.detailValue}>{new Date(selectedTransaction.created_at).toLocaleString()}</Text>
               </View>
 
               <View style={styles.detailSection}>
@@ -189,7 +191,7 @@ export default function HistoryScreen() {
                 {selectedTransaction.items?.map((item: any, index: number) => (
                   <View key={index} style={styles.itemRow}>
                     <Text style={styles.itemName}>ID: {item.product_id.slice(0, 8)} x {item.quantity}</Text>
-                    <Text style={styles.itemPrice}>{(item.price_at_time_of_sale * item.quantity).toLocaleString()} MMK</Text>
+                    <Text style={styles.itemPrice}>{(item.unit_price_mmk * item.quantity).toLocaleString()} MMK</Text>
                   </View>
                 ))}
               </View>
@@ -201,7 +203,7 @@ export default function HistoryScreen() {
 
               <View style={styles.detailSection}>
                 <Text style={styles.detailLabel}>TRANSACTION ID</Text>
-                <Text style={styles.detailValue}>{selectedTransaction.transaction_id}</Text>
+                <Text style={styles.detailValue}>{selectedTransaction.id}</Text>
               </View>
             </ScrollView>
           </View>
@@ -247,7 +249,7 @@ export default function HistoryScreen() {
       <FlatList
         data={transactions}
         renderItem={renderTransactionItem}
-        keyExtractor={(item) => item.transaction_id}
+        keyExtractor={(item) => item.id}
         contentContainerStyle={styles.listContent}
         onRefresh={() => loadTransactions(0)}
         refreshing={loading}

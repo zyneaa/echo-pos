@@ -12,10 +12,23 @@ export const syncTransactions = async () => {
   const unsynced = getUnsyncedTransactions() as any[];
   for (const tx of unsynced) {
     try {
-      // items are stored as JSON string in SQLite
+      // items are stored as JSON string in SQLite in the local format:
+      // { id, name, quantity, price_mmk }
+      const rawItems = JSON.parse(tx.items || '[]');
+
+      // Map local transaction shape to server Transaction / TransactionItem models
       const payload = {
-        ...tx,
-        items: JSON.parse(tx.items),
+        id: tx.transaction_id,
+        total_amount_mmk: tx.total_amount_mmk,
+        payment_method: tx.payment_method,
+        cashier_id: tx.cashier_id,
+        items: rawItems.map((item: any) => ({
+          id: item.id,
+          transaction_id: tx.transaction_id,
+          product_id: item.id,
+          quantity: item.quantity,
+          unit_price_mmk: item.price_mmk,
+        })),
       };
 
       await axios.post(`${API_URL}/transactions`, payload, {
@@ -43,20 +56,20 @@ export const fetchProductTypesFromServer = async () => {
   }
 };
 
-export const fetchProductsFromServer = async (filters?: { 
-  name?: string; 
-  type_id?: string; 
-  min_stock?: number; 
-  max_stock?: number; 
-  min_price?: number; 
-  max_price?: number; 
-  min_cost?: number; 
-  max_cost?: number; 
-  limit?: number; 
-  offset?: number; 
+export const fetchProductsFromServer = async (filters?: {
+  name?: string;
+  type_id?: string;
+  min_stock?: number;
+  max_stock?: number;
+  min_price?: number;
+  max_price?: number;
+  min_cost?: number;
+  max_cost?: number;
+  limit?: number;
+  offset?: number;
 }) => {
   const token = useAuthStore.getState().token;
-  
+
   try {
     let url = `${API_URL}/products`;
     const params = new URLSearchParams();
@@ -108,13 +121,33 @@ export const createTransactionOnServer = async (transaction: any) => {
   const token = useAuthStore.getState().token;
   if (!token) throw new Error('No auth token found');
 
+  // Support both local (transaction_id + items with price_mmk) and
+  // already-normalized shapes (id + items with unit_price_mmk)
+  const id = transaction.id ?? transaction.transaction_id;
+  const cashierId = transaction.cashier_id;
+  const items = (transaction.items || []).map((item: any) => ({
+    id: item.id,
+    transaction_id: id,
+    product_id: item.product_id ?? item.id,
+    quantity: item.quantity,
+    unit_price_mmk: item.unit_price_mmk ?? item.price_mmk,
+  }));
+
+  const payload = {
+    id,
+    total_amount_mmk: transaction.total_amount_mmk,
+    payment_method: transaction.payment_method,
+    cashier_id: cashierId,
+    items,
+  };
+
   try {
-    await axios.post(`${API_URL}/transactions`, transaction, {
+    await axios.post(`${API_URL}/transactions`, payload, {
       headers: { Authorization: `Bearer ${token}` },
     });
-    console.log(`Transaction ${transaction.transaction_id} created on server`);
+    console.log(`Transaction ${id} created on server`);
   } catch (error) {
-    console.error(`Failed to create transaction ${transaction.transaction_id} on server`, error);
+    console.error(`Failed to create transaction ${id} on server`, error);
     throw error;
   }
 };
@@ -138,9 +171,9 @@ export const upsertProductToServer = async (product: any) => {
   }
 };
 
-export const fetchTransactionsFromServer = async (filters?: { 
-  start?: string; 
-  end?: string; 
+export const fetchTransactionsFromServer = async (filters?: {
+  start?: string;
+  end?: string;
   min_amount?: number;
   limit?: number;
   offset?: number;
@@ -158,7 +191,7 @@ export const fetchTransactionsFromServer = async (filters?: {
         }
       });
     }
-    
+
     if (params.toString()) {
       url += `?${params.toString()}`;
     }
@@ -175,7 +208,7 @@ export const fetchTransactionsFromServer = async (filters?: {
 
 export const fetchProductByBarcodeFromServer = async (barcode: string) => {
   const token = useAuthStore.getState().token;
-  
+
   // Fallback to local if no token
   if (!token) {
     return getProductByBarcode(barcode);

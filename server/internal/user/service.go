@@ -3,6 +3,7 @@ package user
 import (
 	"context"
 	"errors"
+	"log"
 
 	"github.com/google/uuid"
 	"golang.org/x/crypto/bcrypt"
@@ -40,8 +41,11 @@ func (s *Service) Login(ctx context.Context, username, password string) (string,
 		return "", errors.New("invalid credentials")
 	}
 
+	log.Printf("%v %v", user.Username, user.PasswordHash)
+
 	err = bcrypt.CompareHashAndPassword([]byte(user.PasswordHash), []byte(password))
 	if err != nil {
+		log.Printf("Bcrypt mismatch for user %s: %v", username, err)
 		return "", errors.New("invalid credentials")
 	}
 

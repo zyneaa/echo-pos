@@ -58,7 +58,7 @@ export default function HomeScreen() {
                         strokeWidth={2.5}
                     />
                     <View style={styles.titleBadge}>
-                        <Text style={styles.brutalistTitle}>WELCOME BACK</Text>
+                        <Text style={styles.brutalistTitle}>Welcome Back</Text>
                     </View>
                 </View>
                 <View style={[styles.cutOut, { height: height * 0.80 }]}>
