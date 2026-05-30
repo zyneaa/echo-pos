@@ -7,7 +7,7 @@ import (
 	"math/rand"
 	"time"
 
-	"github.com/google/uuid"
+	"github.com/oklog/ulid/v2"
 	"github.com/zyneaa/server/internal/config"
 	"github.com/zyneaa/server/internal/database"
 )
@@ -22,7 +22,10 @@ func main() {
 
 	rand.Seed(time.Now().UnixNano())
 
-	fmt.Println("Seeding database...")
+	fmt.Println("Wiping old seed data (Keeping users)...")
+	clearDatabase(db.DB)
+
+	fmt.Println("Seeding database with ULIDs...")
 
 	// 1. Get existing users
 	userIDs := getExistingUserIDs(db.DB)
@@ -67,6 +70,31 @@ func main() {
 	fmt.Println("Seeding completed successfully!")
 }
 
+func clearDatabase(db *sql.DB) {
+	// Order is strictly set to prevent foreign key constraint violations
+	tables := []string{
+		"product_tag_mappings",
+		"inventory_logs",
+		"transaction_items",
+		"transactions",
+		"spendings",
+		"delivery_items",
+		"deliveries",
+		"products",
+		"product_types",
+		"product_tags",
+		"suppliers",
+		"delivery_services",
+	}
+
+	for _, table := range tables {
+		_, err := db.Exec(fmt.Sprintf("DELETE FROM %s", table))
+		if err != nil {
+			log.Printf("Warning: failed to clear table %s: %v", table, err)
+		}
+	}
+}
+
 func getExistingUserIDs(db *sql.DB) []string {
 	rows, err := db.Query("SELECT id FROM users")
 	if err != nil {
@@ -88,7 +116,7 @@ func seedProductTypes(db *sql.DB) []string {
 	types := []string{"Snacks", "Drinks", "Electronics", "Groceries", "Household", "Personal Care"}
 	var ids []string
 	for _, t := range types {
-		id := uuid.New().String()
+		id := ulid.Make().String()
 		_, err := db.Exec("INSERT INTO product_types (id, type_name) VALUES (?, ?)", id, t)
 		if err == nil {
 			ids = append(ids, id)
@@ -101,7 +129,7 @@ func seedProductTags(db *sql.DB) []string {
 	tags := []string{"Sale", "New Arrival", "Bestseller", "Organic", "Limited Edition"}
 	var ids []string
 	for _, t := range tags {
-		id := uuid.New().String()
+		id := ulid.Make().String()
 		_, err := db.Exec("INSERT INTO product_tags (id, tag_name) VALUES (?, ?)", id, t)
 		if err == nil {
 			ids = append(ids, id)
@@ -122,7 +150,7 @@ func seedSuppliers(db *sql.DB) []string {
 	}
 	var ids []string
 	for _, s := range suppliers {
-		id := uuid.New().String()
+		id := ulid.Make().String()
 		_, err := db.Exec("INSERT INTO suppliers (id, name, contact_info, spent_amount, time_bought) VALUES (?, ?, ?, ?, ?)",
 			id, s.name, s.contact, rand.Intn(1000000), rand.Intn(50))
 		if err == nil {
@@ -144,7 +172,7 @@ func seedDeliveryServices(db *sql.DB) []string {
 	}
 	var ids []string
 	for _, s := range services {
-		id := uuid.New().String()
+		id := ulid.Make().String()
 		_, err := db.Exec("INSERT INTO delivery_services (id, delivery_service_name, contact_number, description) VALUES (?, ?, ?, ?)",
 			id, s.name, s.contact, s.desc)
 		if err == nil {
@@ -160,7 +188,7 @@ func seedProducts(db *sql.DB, typeIDs, tagIDs []string) []string {
 	nouns := []string{"Chips", "Coffee", "Headphones", "Detergent", "Soap", "Bread", "Milk", "Soda"}
 
 	for range 50 {
-		id := uuid.New().String()
+		id := ulid.Make().String()
 		barcode := fmt.Sprintf("%012d", rand.Int63n(1000000000000))
 		name := adjectives[rand.Intn(len(adjectives))] + " " + nouns[rand.Intn(len(nouns))]
 		typeID := typeIDs[rand.Intn(len(typeIDs))]
@@ -168,17 +196,17 @@ func seedProducts(db *sql.DB, typeIDs, tagIDs []string) []string {
 		price := costPrice + (rand.Intn(20)+5)*100
 		stock := rand.Intn(100) + 10
 		alert := rand.Intn(10) + 5
+		expireAt := time.Now().AddDate(0, rand.Intn(12), rand.Intn(30)).Format(time.RFC3339)
 
 		_, err := db.Exec(`INSERT INTO products (id, barcode_id, product_name, type_id, price_mmk, stock_quantity, cost_price_mmk, alert_stock, expire_at) 
-			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-			id, barcode, name, typeID, price, stock, costPrice, alert, time.Now().AddDate(0, rand.Intn(12), rand.Intn(30)))
+				VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+			id, barcode, name, typeID, price, stock, costPrice, alert, expireAt)
 
 		if err != nil {
 			continue
 		}
 		ids = append(ids, id)
 
-		// Map tags
 		numTags := rand.Intn(3)
 		for range numTags {
 			tagID := tagIDs[rand.Intn(len(tagIDs))]
@@ -190,7 +218,7 @@ func seedProducts(db *sql.DB, typeIDs, tagIDs []string) []string {
 
 func seedInventoryLogs(db *sql.DB, productIDs, supplierIDs []string) {
 	for range 20 {
-		id := uuid.New().String()
+		id := ulid.Make().String()
 		productID := productIDs[rand.Intn(len(productIDs))]
 		supplierID := supplierIDs[rand.Intn(len(supplierIDs))]
 		qty := (rand.Intn(5) + 1) * 10
@@ -203,9 +231,8 @@ func seedInventoryLogs(db *sql.DB, productIDs, supplierIDs []string) {
 
 func seedTransactions(db *sql.DB, productIDs []string, userIDs []string) {
 	for range 100 {
-		txID := uuid.New().String()
+		txID := ulid.Make().String()
 		numItems := rand.Intn(5) + 1
-		totalAmount := 0
 
 		var cashierID any
 		if len(userIDs) > 0 && rand.Intn(10) > 2 {
@@ -216,35 +243,67 @@ func seedTransactions(db *sql.DB, productIDs []string, userIDs []string) {
 
 		paymentMethods := []string{"Cash", "KPay", "WaveMoney"}
 		paymentMethod := paymentMethods[rand.Intn(len(paymentMethods))]
+		createdAt := time.Now().Add(-time.Duration(rand.Intn(30*24)) * time.Hour).Format(time.RFC3339)
 
-		// Insert transaction items first to calculate total (or just random it)
+		// 1. Calculate items and total amount entirely in-memory first
+		type tempItem struct {
+			id    string
+			pID   string
+			qty   int
+			price int
+		}
+		
+		var items []tempItem
+		totalAmount := 0
+
 		for range numItems {
-			itemID := uuid.New().String()
 			productID := productIDs[rand.Intn(len(productIDs))]
 			qty := rand.Intn(3) + 1
 
 			var price int
-			_ = db.QueryRow("SELECT price_mmk FROM products WHERE id = ?", productID).Scan(&price)
+			err := db.QueryRow("SELECT price_mmk FROM products WHERE id = ?", productID).Scan(&price)
+			if err != nil {
+				log.Fatalf("failed to fetch product price during seeding: %v", err)
+			}
 
 			totalAmount += price * qty
 
-			_, _ = db.Exec("INSERT INTO transaction_items (id, transaction_id, product_id, quantity, unit_price_mmk) VALUES (?, ?, ?, ?, ?)",
-				itemID, txID, productID, qty, price)
+			items = append(items, tempItem{
+				id:    ulid.Make().String(),
+				pID:   productID,
+				qty:   qty,
+				price: price,
+			})
 		}
 
-		_, _ = db.Exec("INSERT INTO transactions (id, total_amount_mmk, payment_method, cashier_id, created_at) VALUES (?, ?, ?, ?, ?)",
-			txID, totalAmount, paymentMethod, cashierID, time.Now().Add(-time.Duration(rand.Intn(30*24))*time.Hour))
+		// 2. Insert parent record FIRST so Foreign Keys don't cry
+		_, err := db.Exec("INSERT INTO transactions (id, total_amount_mmk, payment_method, cashier_id, created_at) VALUES (?, ?, ?, ?, ?)",
+			txID, totalAmount, paymentMethod, cashierID, createdAt)
+		if err != nil {
+			log.Fatalf("failed to insert transaction parent header: %v", err)
+		}
+
+		// 3. Insert child records SECOND
+		for _, item := range items {
+			_, err = db.Exec("INSERT INTO transaction_items (id, transaction_id, product_id, quantity, unit_price_mmk) VALUES (?, ?, ?, ?, ?)",
+				item.id, txID, item.pID, item.qty, item.price)
+			if err != nil {
+				log.Fatalf("failed to insert transaction line item: %v", err)
+			}
+		}
 	}
 }
 
 func seedSpendings(db *sql.DB) {
 	reasons := []string{"Electricity Bill", "Internet", "Water", "Rent", "Staff Snacks", "Cleaning Supplies"}
 	for range 100 {
-		id := uuid.New().String()
+		id := ulid.Make().String()
 		info := reasons[rand.Intn(len(reasons))]
 		amount := (rand.Intn(100) + 10) * 100
+		createdAt := time.Now().Add(-time.Duration(rand.Intn(30*24)) * time.Hour).Format(time.RFC3339)
+
 		_, _ = db.Exec("INSERT INTO spendings (id, info, amount, created_at) VALUES (?, ?, ?, ?)",
-			id, info, amount, time.Now().Add(-time.Duration(rand.Intn(30*24))*time.Hour))
+			id, info, amount, createdAt)
 	}
 }
 
@@ -256,7 +315,7 @@ func seedDeliveries(db *sql.DB, productIDs, deliveryServiceIDs []string) {
 	delStatus := []string{"PENDING", "SHIPPED", "DELIVERED", "REJECTED"}
 
 	for range 30 {
-		id := uuid.New().String()
+		id := ulid.Make().String()
 		customer := customers[rand.Intn(len(customers))]
 		destination := destinations[rand.Intn(len(destinations))]
 		messenger := messengers[rand.Intn(len(messengers))]
@@ -269,7 +328,7 @@ func seedDeliveries(db *sql.DB, productIDs, deliveryServiceIDs []string) {
 		totalAmount := 0
 
 		for range numItems {
-			itemID := uuid.New().String()
+			itemID := ulid.Make().String()
 			productID := productIDs[rand.Intn(len(productIDs))]
 			qty := rand.Intn(2) + 1
 
@@ -281,10 +340,11 @@ func seedDeliveries(db *sql.DB, productIDs, deliveryServiceIDs []string) {
 				itemID, id, productID, qty, price)
 		}
 
+		createdAt := time.Now().Add(-time.Duration(rand.Intn(10*24)) * time.Hour).Format(time.RFC3339)
+
 		_, _ = db.Exec(`INSERT INTO deliveries (id, customer_name, destination, messenger, delivery_service_id, 
 			total_amount_mmk, delivery_fee_mmk, payment_status, delivery_status, created_at) 
 			VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-			id, customer, destination, messenger, serviceID, totalAmount, fee, pStatus, dStatus,
-			time.Now().Add(-time.Duration(rand.Intn(10*24))*time.Hour))
+			id, customer, destination, messenger, serviceID, totalAmount, fee, pStatus, dStatus, createdAt)
 	}
 }
