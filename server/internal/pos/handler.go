@@ -52,6 +52,7 @@ func (h *Handler) UpsertProduct(w http.ResponseWriter, r *http.Request) {
 
 	if err := h.svc.UpsertProduct(r.Context(), &p); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
+		log.Print(err.Error())
 		return
 	}
 
@@ -74,7 +75,7 @@ func (h *Handler) GetProducts(w http.ResponseWriter, r *http.Request) {
 	query := r.URL.Query()
 
 	if name := query.Get("product_name"); name != "" {
-		filters["name"] = name
+		filters["product_name"] = name
 	}
 	if typeID := query.Get("type_id"); typeID != "" {
 		filters["type_id"] = typeID

@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"time"
 
+	"github.com/oklog/ulid/v2"
 	"github.com/zyneaa/server/internal/database"
 )
 
@@ -227,7 +228,7 @@ func (r *Repository) GetTransactions(ctx context.Context, start, end string, min
 	baseQuery := `
 		SELECT 
 			t.id, t.total_amount_mmk, t.payment_method, t.cashier_id, t.created_at,
-			ti.id, ti.product_id, ti.quantity, ti.unit_price_mmk
+			ti.id, ti.product_id, ti.quantity, ti.unit_price_mmk, p.product_name
 		FROM (
 			SELECT id, total_amount_mmk, payment_method, cashier_id, created_at
 			FROM transactions
@@ -260,6 +261,7 @@ func (r *Repository) GetTransactions(ctx context.Context, start, end string, min
 
 	baseQuery += `) t
 	LEFT JOIN transaction_items ti ON t.id = ti.transaction_id
+	LEFT JOIN products p ON ti.product_id = p.id
 	ORDER BY t.created_at DESC`
 
 	rows, err := r.db.QueryContext(ctx, baseQuery, args...)
@@ -278,12 +280,12 @@ func (r *Repository) GetTransactions(ctx context.Context, start, end string, min
 		var tAmount uint64
 		var tCashier sql.NullString
 
-		var itemID, itemProdID sql.NullString
+		var itemID, itemProdID, itemProdName sql.NullString
 		var itemQty, itemPrice sql.NullInt64
 
 		err := rows.Scan(
 			&tID, &tAmount, &tPayment, &tCashier, &tCreatedAt,
-			&itemID, &itemProdID, &itemQty, &itemPrice,
+			&itemID, &itemProdID, &itemQty, &itemPrice, &itemProdName,
 		)
 		if err != nil {
 			return nil, err
@@ -306,6 +308,7 @@ func (r *Repository) GetTransactions(ctx context.Context, start, end string, min
 				ID:            itemID.String,
 				TransactionID: &tID,
 				ProductID:     itemProdID.String,
+				ProductName:   itemProdName.String,
 				Quantity:      int(itemQty.Int64),
 				UnitPriceMMK:  int(itemPrice.Int64),
 			})
@@ -325,12 +328,12 @@ func (r *Repository) GetTransactions(ctx context.Context, start, end string, min
 
 func (r *Repository) AddSpending(ctx context.Context, s *Spending) error {
 	query := `INSERT INTO spendings (id, info, amount) VALUES (?, ?, ?)`
-	_, err := r.db.ExecContext(ctx, query, s.ID, s.Info, s.Amount)
+	_, err := r.db.ExecContext(ctx, query, ulid.Make().String(), s.Info, s.Amount)
 	return err
 }
 
 func (r *Repository) GetSpending(ctx context.Context, start, end string) ([]Spending, error) {
-	query := "SELECT id, amount, info, timestamp FROM spendings WHERE timestamp BETWEEN ? AND ?"
+	query := "SELECT id, amount, info, created_at FROM spendings WHERE created_at BETWEEN ? AND ?"
 	rows, err := r.db.QueryContext(ctx, query, start, end)
 	if err != nil {
 		return nil, err

@@ -5,7 +5,7 @@ import { Config } from "@/constants/config";
 interface Product {
   id: string;
   barcode_id: string;
-  name: string;
+  product_name: string;
   image_url: string;
   description: string;
   type_id: string;

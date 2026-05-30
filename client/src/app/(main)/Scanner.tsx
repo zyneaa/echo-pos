@@ -16,7 +16,6 @@ import { Scan, Save, Database, Bluetooth, Camera as CameraIcon, AlertTriangle, F
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import { upsertProductToServer, fetchProductByBarcodeFromServer } from '@/api/sync';
 import 'react-native-get-random-values';
-import { v4 as uuidv4 } from 'uuid';
 import { useLocalSearchParams } from 'expo-router';
 
 const { width } = Dimensions.get('window');
@@ -26,13 +25,12 @@ export default function ScannerScreen() {
     const [permission, requestPermission] = useCameraPermissions();
     const [isCameraActive, setIsCameraActive] = useState(true);
     const [scanned, setScanned] = useState(false);
-    
+
     // UI State
     const [isFormVisible, setIsFormVisible] = useState(false);
     const [scanStatus, setScanStatus] = useState<'idle' | 'found' | 'not_found'>('idle');
     const [foundProduct, setFoundProduct] = useState<any | null>(null);
 
-    const [productId, setProductId] = useState('');
     const [scannedCode, setScannedCode] = useState('');
     const [productName, setProductName] = useState('');
     const [price, setPrice] = useState('');
@@ -62,7 +60,6 @@ export default function ScannerScreen() {
     }, [params.barcode]);
 
     const resetForm = () => {
-        setProductId('');
         setScannedCode('');
         setProductName('');
         setPrice('');
@@ -133,7 +130,7 @@ export default function ScannerScreen() {
         setScannedCode(barcode);
         setIsCheckingServer(true);
         setIsFormVisible(false); // Hide form while checking
-        
+
         try {
             const serverProduct = await fetchProductByBarcodeFromServer(barcode);
             if (serverProduct) {
@@ -143,8 +140,6 @@ export default function ScannerScreen() {
             } else {
                 setScanStatus('not_found');
                 setFoundProduct(null);
-                // Pre-fill barcode for new product
-                setProductId(uuidv4());
                 setProductName('');
                 setPrice('');
                 setCostPrice('');
@@ -163,8 +158,7 @@ export default function ScannerScreen() {
     };
 
     const applyProductData = (product: any) => {
-        setProductId(product.id);
-        setProductName(product.name);
+        setProductName(product.product_name);
         setPrice(product.price_mmk.toString());
         setCostPrice(product.cost_price_mmk.toString());
         setStock(product.stock_quantity.toString());
@@ -191,19 +185,19 @@ export default function ScannerScreen() {
 
         try {
             const product = {
-                id: productId || uuidv4(),
                 barcode_id: scannedCode,
-                name: productName,
+                product_name: productName,
                 price_mmk: parseInt(price) || 0,
                 cost_price_mmk: parseInt(costPrice) || 0,
                 stock_quantity: parseInt(stock) || 0,
                 alert_stock: parseInt(alertStock) || 5,
                 image_url: '',
                 description: description,
-                type_id: 'default',
+                type_id: null,
                 expire_at: finalExpiry,
                 created_at: new Date().toISOString()
             };
+            console.log(product)
 
             await upsertProductToServer(product);
             showNotification('success', isUpdateMode ? "PRODUCT UPDATED" : "PRODUCT REGISTERED");
@@ -219,345 +213,345 @@ export default function ScannerScreen() {
     return (
         <>
             <ScrollView style={styles.container} contentContainerStyle={styles.content}>
-            <View style={styles.scannerWrapper}>
-                {isCameraActive ? (
-                    <View style={styles.scannerView}>
-                        {permission?.granted ? (
-                            <CameraView
-                                style={StyleSheet.absoluteFill}
-                                onBarcodeScanned={scanned ? undefined : handleBarCodeScanned}
-                            />
-                        ) : (
-                            <View style={[StyleSheet.absoluteFill, { justifyContent: 'center', alignItems: 'center' }]}>
-                                <Text style={{ color: Colors.white }}>PERMISSION REQUIRED</Text>
-                                <Pressable onPress={requestPermission} style={{ marginTop: 10, backgroundColor: Colors.primary, padding: 8 }}>
-                                    <Text style={{ color: Colors.white }}>GRANT</Text>
-                                </Pressable>
-                            </View>
-                        )}
-                        <View style={styles.scanLine} />
-                        <Text style={styles.scannerStatus}>CAMERA ACTIVE</Text>
-                        
-                        <Pressable 
-                            style={styles.toggleModeButton}
-                            onPress={() => setIsCameraActive(false)}
-                        >
-                            <Bluetooth size={16} color={Colors.text} />
-                            <Text style={styles.toggleModeText}>BT SCANNER</Text>
-                        </Pressable>
-
-                        <View style={[styles.corner, { top: 20, left: 20, borderLeftWidth: 6, borderTopWidth: 6 }]} />
-                        <View style={[styles.corner, { top: 20, right: 20, borderRightWidth: 6, borderTopWidth: 6 }]} />
-                        <View style={[styles.corner, { bottom: 20, left: 20, borderLeftWidth: 6, borderBottomWidth: 6 }]} />
-                        <View style={[styles.corner, { bottom: 20, right: 20, borderRightWidth: 6, borderBottomWidth: 6 }]} />
-                    </View>
-                ) : (
-                    <View style={[styles.scannerView, { backgroundColor: Colors.backgroundElement }]}>
-                        <Bluetooth size={80} color={Colors.primary} opacity={0.3} strokeWidth={1} />
-                        <TextInput
-                            ref={btInputRef}
-                            style={styles.hiddenInput}
-                            autoFocus
-                            placeholder="WAITING FOR SCAN..."
-                            onSubmitEditing={(e) => {
-                                loadProductByBarcode(e.nativeEvent.text);
-                                btInputRef.current?.clear();
-                            }}
-                        />
-                        <Text style={[styles.scannerStatus, { color: Colors.text }]}>READY FOR BT SCAN</Text>
-                        
-                        <Pressable 
-                            style={styles.toggleModeButton}
-                            onPress={() => setIsCameraActive(true)}
-                        >
-                            <CameraIcon size={16} color={Colors.text} />
-                            <Text style={styles.toggleModeText}>CAMERA</Text>
-                        </Pressable>
-                    </View>
-                )}
-            </View>
-
-            {/* Scan Results Section */}
-            {!isFormVisible && (
-                <View style={styles.resultContainer}>
-                    {isCheckingServer ? (
-                        <View style={styles.statusBox}>
-                            <ActivityIndicator size="large" color={Colors.primary} />
-                            <Text style={styles.statusText}>CHECKING DATABASE...</Text>
-                        </View>
-                    ) : scanStatus === 'found' && foundProduct ? (
-                        <Pressable 
-                            style={styles.productSummaryCard}
-                            onPress={() => setIsFormVisible(true)}
-                        >
-                            <View style={styles.summaryHeader}>
-                                <CheckCircle size={24} color="#00FF00" strokeWidth={3} />
-                                <Text style={styles.summaryTitle}>PRODUCT FOUND</Text>
-                            </View>
-                            <View style={styles.summaryInfo}>
-                                <Text style={styles.summaryName}>{foundProduct.name}</Text>
-                                <Text style={styles.summaryBarcode}>{foundProduct.barcode_id}</Text>
-                                <View style={styles.summaryGrid}>
-                                    <View>
-                                        <Text style={styles.summaryLabel}>PRICE</Text>
-                                        <Text style={styles.summaryValue}>{foundProduct.price_mmk.toLocaleString()} MMK</Text>
-                                    </View>
-                                    <View>
-                                        <Text style={styles.summaryLabel}>STOCK</Text>
-                                        <Text style={styles.summaryValue}>{foundProduct.stock_quantity} UNITS</Text>
-                                    </View>
+                <View style={styles.scannerWrapper}>
+                    {isCameraActive ? (
+                        <View style={styles.scannerView}>
+                            {permission?.granted ? (
+                                <CameraView
+                                    style={StyleSheet.absoluteFill}
+                                    onBarcodeScanned={scanned ? undefined : handleBarCodeScanned}
+                                />
+                            ) : (
+                                <View style={[StyleSheet.absoluteFill, { justifyContent: 'center', alignItems: 'center' }]}>
+                                    <Text style={{ color: Colors.white }}>PERMISSION REQUIRED</Text>
+                                    <Pressable onPress={requestPermission} style={{ marginTop: 10, backgroundColor: Colors.primary, padding: 8 }}>
+                                        <Text style={{ color: Colors.white }}>GRANT</Text>
+                                    </Pressable>
                                 </View>
-                            </View>
-                            <View style={styles.summaryAction}>
-                                <Edit2 size={20} color={Colors.white} />
-                                <Text style={styles.summaryActionText}>PRESS TO EDIT</Text>
-                            </View>
-                        </Pressable>
-                    ) : scanStatus === 'not_found' ? (
-                        <View style={styles.notFoundCard}>
-                            <XCircle size={48} color="#FF0000" strokeWidth={2} />
-                            <Text style={styles.notFoundTitle}>NOT REGISTERED</Text>
-                            <Text style={styles.notFoundSubtitle}>Barcode: {scannedCode}</Text>
-                            <Pressable 
-                                style={styles.registerButton}
-                                onPress={() => setIsFormVisible(true)}
+                            )}
+                            <View style={styles.scanLine} />
+                            <Text style={styles.scannerStatus}>CAMERA ACTIVE</Text>
+
+                            <Pressable
+                                style={styles.toggleModeButton}
+                                onPress={() => setIsCameraActive(false)}
                             >
-                                <Plus size={24} color={Colors.white} strokeWidth={3} />
-                                <Text style={styles.registerButtonText}>REGISTER NEW PRODUCT</Text>
+                                <Bluetooth size={16} color={Colors.text} />
+                                <Text style={styles.toggleModeText}>BT SCANNER</Text>
                             </Pressable>
+
+                            <View style={[styles.corner, { top: 20, left: 20, borderLeftWidth: 6, borderTopWidth: 6 }]} />
+                            <View style={[styles.corner, { top: 20, right: 20, borderRightWidth: 6, borderTopWidth: 6 }]} />
+                            <View style={[styles.corner, { bottom: 20, left: 20, borderLeftWidth: 6, borderBottomWidth: 6 }]} />
+                            <View style={[styles.corner, { bottom: 20, right: 20, borderRightWidth: 6, borderBottomWidth: 6 }]} />
                         </View>
                     ) : (
-                        <View style={styles.idleCard}>
-                            <Scan size={64} color={Colors.textSecondary} strokeWidth={1} />
-                            <Text style={styles.idleText}>SCAN A PRODUCT TO BEGIN</Text>
+                        <View style={[styles.scannerView, { backgroundColor: Colors.backgroundElement }]}>
+                            <Bluetooth size={80} color={Colors.primary} opacity={0.3} strokeWidth={1} />
+                            <TextInput
+                                ref={btInputRef}
+                                style={styles.hiddenInput}
+                                autoFocus
+                                placeholder="WAITING FOR SCAN..."
+                                onSubmitEditing={(e) => {
+                                    loadProductByBarcode(e.nativeEvent.text);
+                                    btInputRef.current?.clear();
+                                }}
+                            />
+                            <Text style={[styles.scannerStatus, { color: Colors.text }]}>READY FOR BT SCAN</Text>
+
+                            <Pressable
+                                style={styles.toggleModeButton}
+                                onPress={() => setIsCameraActive(true)}
+                            >
+                                <CameraIcon size={16} color={Colors.text} />
+                                <Text style={styles.toggleModeText}>CAMERA</Text>
+                            </Pressable>
                         </View>
                     )}
                 </View>
-            )}
 
-            {isFormVisible && (
-                <View style={styles.formContainer}>
-                    <View style={styles.sectionHeader}>
-                        <Pressable onPress={() => setIsFormVisible(false)} style={styles.backButton}>
-                            <X size={20} color={Colors.white} strokeWidth={3} />
-                        </Pressable>
-                        <Text style={styles.sectionTitle}>
-                            {isUpdateMode ? 'UPDATE PRODUCT' : 'REGISTER NEW'}
-                        </Text>
-                    </View>
-
-                    <View style={styles.inputGroup}>
-                        <Text style={styles.label}>BARCODE / QR</Text>
-                        <View style={styles.scannedValueBox}>
-                            <Text style={styles.scannedValueText}>{scannedCode}</Text>
-                        </View>
-                    </View>
-
-                    <View style={styles.inputGroup}>
-                        <Text style={styles.label}>PRODUCT NAME</Text>
-                        <TextInput
-                            style={styles.brutalistInput}
-                            placeholder="ENTER NAME..."
-                            placeholderTextColor={Colors.textSecondary}
-                            value={productName}
-                            onChangeText={setProductName}
-                        />
-                    </View>
-
-                    <View style={{ flexDirection: 'row', gap: 16 }}>
-                        <View style={[styles.inputGroup, { flex: 1 }]}>
-                            <Text style={styles.label}>BUY PRICE (MMK)</Text>
-                            <TextInput
-                                style={styles.brutalistInput}
-                                placeholder="0"
-                                placeholderTextColor={Colors.textSecondary}
-                                value={costPrice}
-                                onChangeText={setCostPrice}
-                                keyboardType="decimal-pad"
-                            />
-                        </View>
-                        <View style={[styles.inputGroup, { flex: 1 }]}>
-                            <Text style={styles.label}>SELL PRICE (MMK)</Text>
-                            <TextInput
-                                style={styles.brutalistInput}
-                                placeholder="0"
-                                placeholderTextColor={Colors.textSecondary}
-                                value={price}
-                                onChangeText={setPrice}
-                                keyboardType="decimal-pad"
-                            />
-                        </View>
-                    </View>
-
-                    <View style={{ flexDirection: 'row', gap: 16 }}>
-                        <View style={[styles.inputGroup, { flex: 1 }]}>
-                            <Text style={styles.label}>STOCK QTY</Text>
-                            <TextInput
-                                style={styles.brutalistInput}
-                                placeholder="0"
-                                placeholderTextColor={Colors.textSecondary}
-                                value={stock}
-                                onChangeText={setStock}
-                                keyboardType="numeric"
-                            />
-                        </View>
-                        <View style={[styles.inputGroup, { flex: 1 }]}>
-                            <Text style={styles.label}>ALERT AT</Text>
-                            <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                                <TextInput
-                                    style={[styles.brutalistInput, { flex: 1 }]}
-                                    placeholder="5"
-                                    placeholderTextColor={Colors.textSecondary}
-                                    value={alertStock}
-                                    onChangeText={setAlertStock}
-                                    keyboardType="numeric"
-                                />
-                                <View style={{ position: 'absolute', right: 12 }}>
-                                    <AlertTriangle size={18} color={Colors.primary} />
-                                </View>
+                {/* Scan Results Section */}
+                {!isFormVisible && (
+                    <View style={styles.resultContainer}>
+                        {isCheckingServer ? (
+                            <View style={styles.statusBox}>
+                                <ActivityIndicator size="large" color={Colors.primary} />
+                                <Text style={styles.statusText}>CHECKING DATABASE...</Text>
                             </View>
-                        </View>
-                    </View>
-
-                    <View style={styles.inputGroup}>
-                        <Text style={styles.label}>EXPIRY DATE (YYYY-MM-DD)</Text>
-                        <Pressable 
-                            style={[styles.brutalistInput, { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }]}
-                            onPress={() => setIsCalendarVisible(true)}
-                        >
-                            <Text style={[styles.scannedValueText, !expiryDate && { color: Colors.textSecondary }]}>
-                                {expiryDate || 'SELECT DATE...'}
-                            </Text>
-                            <Calendar size={20} color={expiryDate ? Colors.primary : Colors.textSecondary} strokeWidth={3} />
-                        </Pressable>
-                    </View>
-
-                    {/* Calendar Modal */}
-                    <Modal
-                        visible={isCalendarVisible}
-                        transparent={true}
-                        animationType="fade"
-                        onRequestClose={() => setIsCalendarVisible(false)}
-                    >
-                        <View style={styles.modalOverlay}>
-                            <View style={styles.modalContent}>
-                                <View style={styles.modalHeader}>
-                                    <Text style={styles.modalTitle}>EXPIRY DATE SELECTOR</Text>
-                                    <Pressable onPress={() => setIsCalendarVisible(false)} style={styles.modalClose}>
-                                        <X size={24} color={Colors.white} strokeWidth={4} />
-                                    </Pressable>
+                        ) : scanStatus === 'found' && foundProduct ? (
+                            <Pressable
+                                style={styles.productSummaryCard}
+                                onPress={() => setIsFormVisible(true)}
+                            >
+                                <View style={styles.summaryHeader}>
+                                    <CheckCircle size={24} color="#00FF00" strokeWidth={3} />
+                                    <Text style={styles.summaryTitle}>PRODUCT FOUND</Text>
                                 </View>
-
-                                <View style={styles.calendarContainer}>
-                                    <View style={styles.calendarHeader}>
-                                        <Pressable onPress={() => changeMonth(-1)} style={styles.navButton}>
-                                            <ChevronLeft size={24} color={Colors.white} strokeWidth={3} />
-                                        </Pressable>
-                                        <Text style={styles.calendarTitle}>{monthName} {currentViewDate.getFullYear()}</Text>
-                                        <Pressable onPress={() => changeMonth(1)} style={styles.navButton}>
-                                            <ChevronRight size={24} color={Colors.white} strokeWidth={3} />
-                                        </Pressable>
-                                    </View>
-                                    
-                                    <View style={styles.weekDays}>
-                                        {['S','M','T','W','T','F','S'].map((d, i) => (
-                                            <Text key={`${d}-${i}`} style={styles.weekDayText}>{d}</Text>
-                                        ))}
-                                    </View>
-
-                                    <View style={styles.daysGrid}>
-                                        {calendarDays.map((day, i) => (
-                                            <Pressable
-                                                key={i}
-                                                style={[
-                                                    styles.dayCell, 
-                                                    !day && { opacity: 0 },
-                                                    expiryDate === `${currentViewDate.getFullYear()}-${String(currentViewDate.getMonth() + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}` && styles.selectedDay
-                                                ]}
-                                                disabled={!day}
-                                                onPress={() => day && handleDateSelect(day)}
-                                            >
-                                                <Text style={[
-                                                    styles.dayText,
-                                                    expiryDate === `${currentViewDate.getFullYear()}-${String(currentViewDate.getMonth() + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}` && styles.selectedDayText
-                                                ]}>
-                                                    {day}
-                                                </Text>
-                                            </Pressable>
-                                        ))}
+                                <View style={styles.summaryInfo}>
+                                    <Text style={styles.summaryName}>{foundProduct.product_name}</Text>
+                                    <Text style={styles.summaryBarcode}>{foundProduct.barcode_id}</Text>
+                                    <View style={styles.summaryGrid}>
+                                        <View>
+                                            <Text style={styles.summaryLabel}>PRICE</Text>
+                                            <Text style={styles.summaryValue}>{foundProduct.price_mmk.toLocaleString()} MMK</Text>
+                                        </View>
+                                        <View>
+                                            <Text style={styles.summaryLabel}>STOCK</Text>
+                                            <Text style={styles.summaryValue}>{foundProduct.stock_quantity} UNITS</Text>
+                                        </View>
                                     </View>
                                 </View>
-
-                                <Pressable 
-                                    style={styles.closeModalButton} 
-                                    onPress={() => setIsCalendarVisible(false)}
+                                <View style={styles.summaryAction}>
+                                    <Edit2 size={20} color={Colors.white} />
+                                    <Text style={styles.summaryActionText}>PRESS TO EDIT</Text>
+                                </View>
+                            </Pressable>
+                        ) : scanStatus === 'not_found' ? (
+                            <View style={styles.notFoundCard}>
+                                <XCircle size={48} color="#FF0000" strokeWidth={2} />
+                                <Text style={styles.notFoundTitle}>NOT REGISTERED</Text>
+                                <Text style={styles.notFoundSubtitle}>Barcode: {scannedCode}</Text>
+                                <Pressable
+                                    style={styles.registerButton}
+                                    onPress={() => setIsFormVisible(true)}
                                 >
-                                    <Text style={styles.closeModalButtonText}>CANCEL</Text>
+                                    <Plus size={24} color={Colors.white} strokeWidth={3} />
+                                    <Text style={styles.registerButtonText}>REGISTER NEW PRODUCT</Text>
                                 </Pressable>
                             </View>
-                        </View>
-                    </Modal>
-
-                    <View style={styles.inputGroup}>
-                        <Text style={styles.label}>DESCRIPTION (OPTIONAL)</Text>
-                        <TextInput
-                            style={[styles.brutalistInput, { height: 100, textAlignVertical: 'top' }]}
-                            placeholder="ENTER DESCRIPTION..."
-                            placeholderTextColor={Colors.textSecondary}
-                            value={description}
-                            onChangeText={setDescription}
-                            multiline
-                        />
-                    </View>
-
-                    <Pressable
-                        style={({ pressed }) => [
-                            styles.saveButton,
-                            (pressed || isSaving) && styles.buttonPressed
-                        ]}
-                        onPress={handleSave}
-                        disabled={isSaving}
-                    >
-                        {isSaving ? (
-                            <ActivityIndicator color={Colors.white} />
                         ) : (
-                            <>
-                                {isUpdateMode ? (
-                                    <Database size={24} color={Colors.white} strokeWidth={3} />
-                                ) : (
-                                    <Save size={24} color={Colors.white} strokeWidth={3} />
-                                )}
-                                <Text style={styles.saveButtonText}>
-                                    {isUpdateMode ? 'UPDATE PRODUCT' : 'INSERT NEW PRODUCT'}
-                                </Text>
-                            </>
+                            <View style={styles.idleCard}>
+                                <Scan size={64} color={Colors.textSecondary} strokeWidth={1} />
+                                <Text style={styles.idleText}>SCAN A PRODUCT TO BEGIN</Text>
+                            </View>
                         )}
-                    </Pressable>
-                    
-                    <Pressable 
-                        style={styles.cancelFormButton}
-                        onPress={resetForm}
-                    >
-                        <Text style={styles.cancelFormText}>CANCEL & RESET</Text>
-                    </Pressable>
+                    </View>
+                )}
+
+                {isFormVisible && (
+                    <View style={styles.formContainer}>
+                        <View style={styles.sectionHeader}>
+                            <Pressable onPress={() => setIsFormVisible(false)} style={styles.backButton}>
+                                <X size={20} color={Colors.white} strokeWidth={3} />
+                            </Pressable>
+                            <Text style={styles.sectionTitle}>
+                                {isUpdateMode ? 'UPDATE PRODUCT' : 'REGISTER NEW'}
+                            </Text>
+                        </View>
+
+                        <View style={styles.inputGroup}>
+                            <Text style={styles.label}>BARCODE / QR</Text>
+                            <View style={styles.scannedValueBox}>
+                                <Text style={styles.scannedValueText}>{scannedCode}</Text>
+                            </View>
+                        </View>
+
+                        <View style={styles.inputGroup}>
+                            <Text style={styles.label}>PRODUCT NAME</Text>
+                            <TextInput
+                                style={styles.brutalistInput}
+                                placeholder="ENTER NAME..."
+                                placeholderTextColor={Colors.textSecondary}
+                                value={productName}
+                                onChangeText={setProductName}
+                            />
+                        </View>
+
+                        <View style={{ flexDirection: 'row', gap: 16 }}>
+                            <View style={[styles.inputGroup, { flex: 1 }]}>
+                                <Text style={styles.label}>BUY PRICE (MMK)</Text>
+                                <TextInput
+                                    style={styles.brutalistInput}
+                                    placeholder="0"
+                                    placeholderTextColor={Colors.textSecondary}
+                                    value={costPrice}
+                                    onChangeText={setCostPrice}
+                                    keyboardType="decimal-pad"
+                                />
+                            </View>
+                            <View style={[styles.inputGroup, { flex: 1 }]}>
+                                <Text style={styles.label}>SELL PRICE (MMK)</Text>
+                                <TextInput
+                                    style={styles.brutalistInput}
+                                    placeholder="0"
+                                    placeholderTextColor={Colors.textSecondary}
+                                    value={price}
+                                    onChangeText={setPrice}
+                                    keyboardType="decimal-pad"
+                                />
+                            </View>
+                        </View>
+
+                        <View style={{ flexDirection: 'row', gap: 16 }}>
+                            <View style={[styles.inputGroup, { flex: 1 }]}>
+                                <Text style={styles.label}>STOCK QTY</Text>
+                                <TextInput
+                                    style={styles.brutalistInput}
+                                    placeholder="0"
+                                    placeholderTextColor={Colors.textSecondary}
+                                    value={stock}
+                                    onChangeText={setStock}
+                                    keyboardType="numeric"
+                                />
+                            </View>
+                            <View style={[styles.inputGroup, { flex: 1 }]}>
+                                <Text style={styles.label}>ALERT AT</Text>
+                                <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                                    <TextInput
+                                        style={[styles.brutalistInput, { flex: 1 }]}
+                                        placeholder="5"
+                                        placeholderTextColor={Colors.textSecondary}
+                                        value={alertStock}
+                                        onChangeText={setAlertStock}
+                                        keyboardType="numeric"
+                                    />
+                                    <View style={{ position: 'absolute', right: 12 }}>
+                                        <AlertTriangle size={18} color={Colors.primary} />
+                                    </View>
+                                </View>
+                            </View>
+                        </View>
+
+                        <View style={styles.inputGroup}>
+                            <Text style={styles.label}>EXPIRY DATE (YYYY-MM-DD)</Text>
+                            <Pressable
+                                style={[styles.brutalistInput, { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }]}
+                                onPress={() => setIsCalendarVisible(true)}
+                            >
+                                <Text style={[styles.scannedValueText, !expiryDate && { color: Colors.textSecondary }]}>
+                                    {expiryDate || 'SELECT DATE...'}
+                                </Text>
+                                <Calendar size={20} color={expiryDate ? Colors.primary : Colors.textSecondary} strokeWidth={3} />
+                            </Pressable>
+                        </View>
+
+                        {/* Calendar Modal */}
+                        <Modal
+                            visible={isCalendarVisible}
+                            transparent={true}
+                            animationType="fade"
+                            onRequestClose={() => setIsCalendarVisible(false)}
+                        >
+                            <View style={styles.modalOverlay}>
+                                <View style={styles.modalContent}>
+                                    <View style={styles.modalHeader}>
+                                        <Text style={styles.modalTitle}>EXPIRY DATE SELECTOR</Text>
+                                        <Pressable onPress={() => setIsCalendarVisible(false)} style={styles.modalClose}>
+                                            <X size={24} color={Colors.white} strokeWidth={4} />
+                                        </Pressable>
+                                    </View>
+
+                                    <View style={styles.calendarContainer}>
+                                        <View style={styles.calendarHeader}>
+                                            <Pressable onPress={() => changeMonth(-1)} style={styles.navButton}>
+                                                <ChevronLeft size={24} color={Colors.white} strokeWidth={3} />
+                                            </Pressable>
+                                            <Text style={styles.calendarTitle}>{monthName} {currentViewDate.getFullYear()}</Text>
+                                            <Pressable onPress={() => changeMonth(1)} style={styles.navButton}>
+                                                <ChevronRight size={24} color={Colors.white} strokeWidth={3} />
+                                            </Pressable>
+                                        </View>
+
+                                        <View style={styles.weekDays}>
+                                            {['S', 'M', 'T', 'W', 'T', 'F', 'S'].map((d, i) => (
+                                                <Text key={`${d}-${i}`} style={styles.weekDayText}>{d}</Text>
+                                            ))}
+                                        </View>
+
+                                        <View style={styles.daysGrid}>
+                                            {calendarDays.map((day, i) => (
+                                                <Pressable
+                                                    key={i}
+                                                    style={[
+                                                        styles.dayCell,
+                                                        !day && { opacity: 0 },
+                                                        expiryDate === `${currentViewDate.getFullYear()}-${String(currentViewDate.getMonth() + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}` && styles.selectedDay
+                                                    ]}
+                                                    disabled={!day}
+                                                    onPress={() => day && handleDateSelect(day)}
+                                                >
+                                                    <Text style={[
+                                                        styles.dayText,
+                                                        expiryDate === `${currentViewDate.getFullYear()}-${String(currentViewDate.getMonth() + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}` && styles.selectedDayText
+                                                    ]}>
+                                                        {day}
+                                                    </Text>
+                                                </Pressable>
+                                            ))}
+                                        </View>
+                                    </View>
+
+                                    <Pressable
+                                        style={styles.closeModalButton}
+                                        onPress={() => setIsCalendarVisible(false)}
+                                    >
+                                        <Text style={styles.closeModalButtonText}>CANCEL</Text>
+                                    </Pressable>
+                                </View>
+                            </View>
+                        </Modal>
+
+                        <View style={styles.inputGroup}>
+                            <Text style={styles.label}>DESCRIPTION (OPTIONAL)</Text>
+                            <TextInput
+                                style={[styles.brutalistInput, { height: 100, textAlignVertical: 'top' }]}
+                                placeholder="ENTER DESCRIPTION..."
+                                placeholderTextColor={Colors.textSecondary}
+                                value={description}
+                                onChangeText={setDescription}
+                                multiline
+                            />
+                        </View>
+
+                        <Pressable
+                            style={({ pressed }) => [
+                                styles.saveButton,
+                                (pressed || isSaving) && styles.buttonPressed
+                            ]}
+                            onPress={handleSave}
+                            disabled={isSaving}
+                        >
+                            {isSaving ? (
+                                <ActivityIndicator color={Colors.white} />
+                            ) : (
+                                <>
+                                    {isUpdateMode ? (
+                                        <Database size={24} color={Colors.white} strokeWidth={3} />
+                                    ) : (
+                                        <Save size={24} color={Colors.white} strokeWidth={3} />
+                                    )}
+                                    <Text style={styles.saveButtonText}>
+                                        {isUpdateMode ? 'UPDATE PRODUCT' : 'INSERT NEW PRODUCT'}
+                                    </Text>
+                                </>
+                            )}
+                        </Pressable>
+
+                        <Pressable
+                            style={styles.cancelFormButton}
+                            onPress={resetForm}
+                        >
+                            <Text style={styles.cancelFormText}>CANCEL & RESET</Text>
+                        </Pressable>
+                    </View>
+                )}
+            </ScrollView>
+
+            {/* Custom Brutalist Notification */}
+            {notification.visible && (
+                <View style={[
+                    styles.notificationContainer,
+                    notification.type === 'success' ? styles.successNotification : styles.errorNotification
+                ]}>
+                    {notification.type === 'success' ? (
+                        <CheckCircle size={24} color={Colors.white} strokeWidth={3} />
+                    ) : (
+                        <XCircle size={24} color={Colors.white} strokeWidth={3} />
+                    )}
+                    <Text style={styles.notificationText}>{notification.message}</Text>
                 </View>
             )}
-        </ScrollView>
-
-        {/* Custom Brutalist Notification */}
-        {notification.visible && (
-            <View style={[
-                styles.notificationContainer,
-                notification.type === 'success' ? styles.successNotification : styles.errorNotification
-            ]}>
-                {notification.type === 'success' ? (
-                    <CheckCircle size={24} color={Colors.white} strokeWidth={3} />
-                ) : (
-                    <XCircle size={24} color={Colors.white} strokeWidth={3} />
-                )}
-                <Text style={styles.notificationText}>{notification.message}</Text>
-            </View>
-        )}
         </>
     );
 }

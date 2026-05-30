@@ -252,7 +252,7 @@ func seedTransactions(db *sql.DB, productIDs []string, userIDs []string) {
 			qty   int
 			price int
 		}
-		
+
 		var items []tempItem
 		totalAmount := 0
 

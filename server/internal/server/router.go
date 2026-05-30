@@ -36,6 +36,7 @@ func (s *Server) RegisterRoutes() http.Handler {
 		r.Get("/transactions", s.posH.GetTransactions)
 
 		r.Post("/spending", s.posH.CreateSpending)
+		r.Get("/spending", s.posH.GetSpendings)
 	})
 
 	return r

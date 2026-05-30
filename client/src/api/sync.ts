@@ -9,38 +9,18 @@ export const syncTransactions = async () => {
   const token = useAuthStore.getState().token;
   if (!token) return;
 
+  console.log("Local syncTransactions disabled");
+  return;
+
+  /*
   const unsynced = getUnsyncedTransactions() as any[];
-  for (const tx of unsynced) {
-    try {
-      // items are stored as JSON string in SQLite in the local format:
-      // { id, name, quantity, price_mmk }
-      const rawItems = JSON.parse(tx.items || '[]');
-
-      // Map local transaction shape to server Transaction / TransactionItem models
-      const payload = {
-        id: tx.transaction_id,
-        total_amount_mmk: tx.total_amount_mmk,
-        payment_method: tx.payment_method,
-        cashier_id: tx.cashier_id,
-        items: rawItems.map((item: any) => ({
-          id: item.id,
-          transaction_id: tx.transaction_id,
-          product_id: item.id,
-          quantity: item.quantity,
-          unit_price_mmk: item.price_mmk,
-        })),
-      };
-
-      await axios.post(`${API_URL}/transactions`, payload, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-
-      markTransactionSynced(tx.transaction_id);
+...
       console.log(`Synced transaction ${tx.transaction_id}`);
     } catch (error) {
       console.error(`Failed to sync transaction ${tx.transaction_id}`, error);
     }
   }
+  */
 };
 
 export const fetchProductTypesFromServer = async () => {
@@ -57,7 +37,7 @@ export const fetchProductTypesFromServer = async () => {
 };
 
 export const fetchProductsFromServer = async (filters?: {
-  name?: string;
+  product_name?: string;
   type_id?: string;
   min_stock?: number;
   max_stock?: number;
@@ -90,14 +70,15 @@ export const fetchProductsFromServer = async (filters?: {
     });
     return response.data;
   } catch (error) {
-    console.error('Failed to fetch products from server, falling back to local', error);
-    return getProducts();
+    console.error('Failed to fetch products from server', error);
+    // return getProducts(); // Disabled local fallback
+    return [];
   }
 };
 
 export const fetchAndSyncProducts = async () => {
   const token = useAuthStore.getState().token;
-  if (!token) return getProducts();
+  if (!token) return []; // return getProducts(); // Disabled local fallback
 
   try {
     const response = await axios.get(`${API_URL}/products`, {
@@ -105,15 +86,16 @@ export const fetchAndSyncProducts = async () => {
     });
 
     const products = response.data;
-    // Local sync re-enabled after fixing schema errors
+    /* Local sync disabled
     for (const p of products) {
       upsertProduct(p);
     }
-    console.log('Products synced from server');
+    */
+    console.log('Products fetched from server');
     return products;
   } catch (error) {
-    console.error('Failed to fetch and sync products from server', error);
-    return getProducts();
+    console.error('Failed to fetch products from server', error);
+    return []; // return getProducts(); // Disabled local fallback
   }
 };
 
@@ -134,7 +116,6 @@ export const createTransactionOnServer = async (transaction: any) => {
   }));
 
   const payload = {
-    id,
     total_amount_mmk: transaction.total_amount_mmk,
     payment_method: transaction.payment_method,
     cashier_id: cashierId,
@@ -163,8 +144,8 @@ export const upsertProductToServer = async (product: any) => {
       headers: { Authorization: `Bearer ${token}` },
     });
     console.log(`Product ${product.barcode_id} upserted to server`);
-    // After successful server upsert, update local DB
-    upsertProduct(product);
+    // After successful server upsert, update local DB - DISABLED
+    // upsertProduct(product);
   } catch (error) {
     console.error(`Failed to upsert product ${product.barcode_id} to server`, error);
     throw error;
@@ -209,9 +190,9 @@ export const fetchTransactionsFromServer = async (filters?: {
 export const fetchProductByBarcodeFromServer = async (barcode: string) => {
   const token = useAuthStore.getState().token;
 
-  // Fallback to local if no token
+  // Fallback to local disabled
   if (!token) {
-    return getProductByBarcode(barcode);
+    return null; // return getProductByBarcode(barcode);
   }
 
   try {
@@ -223,7 +204,7 @@ export const fetchProductByBarcodeFromServer = async (barcode: string) => {
     if (error.response && error.response.status === 404) {
       return null;
     }
-    console.error(`Failed to fetch product ${barcode} from server, trying local`, error);
-    return getProductByBarcode(barcode);
+    console.error(`Failed to fetch product ${barcode} from server`, error);
+    return null; // return getProductByBarcode(barcode);
   }
 };

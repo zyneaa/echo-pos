@@ -30,6 +30,7 @@ interface TransactionItem {
   id: string;
   transaction_id: string;
   product_id: string;
+  product_name: string;
   quantity: number;
   unit_price_mmk: number;
 }
@@ -190,7 +191,7 @@ export default function HistoryScreen() {
                 <Text style={styles.detailLabel}>ITEMS</Text>
                 {selectedTransaction.items?.map((item: any, index: number) => (
                   <View key={index} style={styles.itemRow}>
-                    <Text style={styles.itemName}>ID: {item.product_id.slice(0, 8)} x {item.quantity}</Text>
+                    <Text style={styles.itemName}>{item.product_name} x {item.quantity}</Text>
                     <Text style={styles.itemPrice}>{(item.unit_price_mmk * item.quantity).toLocaleString()} MMK</Text>
                   </View>
                 ))}

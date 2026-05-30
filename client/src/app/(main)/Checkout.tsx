@@ -15,14 +15,11 @@ import { Colors } from '@/constants/theme';
 import { ShoppingCart, Trash2, CreditCard, Bluetooth, Camera as CameraIcon, Plus, Minus } from 'lucide-react-native';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import { useCartStore, useAuthStore } from '@/store/useStore';
-import { fetchProductByBarcodeFromServer, syncTransactions } from '@/api/sync';
-import { insertTransaction } from '@/database/sqlite';
+import { fetchProductByBarcodeFromServer } from '@/api/sync';
 import 'react-native-get-random-values';
-import { v4 as uuidv4 } from 'uuid';
 import { PanGestureHandler, State } from 'react-native-gesture-handler';
 
 export default function CheckoutScreen() {
-    const { height } = useWindowDimensions();
     const [isCameraActive, setIsCameraActive] = useState(true);
     const [permission, requestPermission] = useCameraPermissions();
     const { items, addItem, removeItem, updateQuantity, clearCart, total } = useCartStore();
@@ -61,22 +58,26 @@ export default function CheckoutScreen() {
         if (items.length === 0) return;
 
         const transaction = {
-            transaction_id: uuidv4(),
             total_amount_mmk: total,
             payment_method: 'CASH',
             items: items.map(i => ({
-                id: i.id,
-                name: i.name,
+                product_id: i.id,
                 quantity: i.quantity,
-                price_mmk: i.price_mmk
+                unit_price_mmk: i.price_mmk
             })),
-            cashier_id: useAuthStore.getState().user?.id || 'temp-cashier'
+            cashier_id: useAuthStore.getState().user?.id
         };
 
         try {
-            insertTransaction(transaction);
-            syncTransactions().catch(console.error);
+            // insertTransaction(transaction); // Disabled local
+            // syncTransactions().catch(console.error); // Disabled local
+            console.log(transaction)
+
+            const { createTransactionOnServer } = require('@/api/sync');
+            await createTransactionOnServer(transaction);
+
             clearCart();
+            console.log(transaction)
             Alert.alert('Success', 'Transaction completed.');
         } catch (error) {
             console.error(error);
@@ -127,17 +128,17 @@ export default function CheckoutScreen() {
                     <Animated.View style={[styles.nestedCard, { transform: [{ translateX }], zIndex: 1 }]}>
                         <View style={styles.itemMainInfo}>
                             <View style={{ flex: 1 }}>
-                                <Text style={styles.itemName}>{item.name}</Text>
+                                <Text style={styles.itemName}>{item.product_name}</Text>
                                 <Text style={styles.itemPrice}>{item.price_mmk.toLocaleString()} MMK</Text>
                             </View>
-                            <View style={styles.itemTotal}>
+                            <View>
                                 <Text style={styles.itemTotalText}>{(item.price_mmk * item.quantity).toLocaleString()} MMK</Text>
                             </View>
                         </View>
 
                         <View style={styles.itemControls}>
                             <View style={styles.qtyContainer}>
-                                <Pressable 
+                                <Pressable
                                     onPress={() => {
                                         updateQuantity(item.id, item.quantity - 1);
                                         Vibration.vibrate(10);
@@ -149,7 +150,7 @@ export default function CheckoutScreen() {
                                 <View style={styles.qtyDisplay}>
                                     <Text style={styles.qtyText}>{item.quantity}</Text>
                                 </View>
-                                <Pressable 
+                                <Pressable
                                     onPress={() => {
                                         updateQuantity(item.id, item.quantity + 1);
                                         Vibration.vibrate(10);
@@ -160,7 +161,7 @@ export default function CheckoutScreen() {
                                 </Pressable>
                             </View>
 
-                            <Pressable 
+                            <Pressable
                                 onPress={() => {
                                     removeItem(item.id);
                                     Vibration.vibrate([0, 20, 50, 20]); // Double pulse for deletion
@@ -189,7 +190,7 @@ export default function CheckoutScreen() {
                             />
                             <View style={styles.scanLine} />
                             <Text style={styles.statusText}>CAMERA ACTIVE</Text>
-                            <Pressable 
+                            <Pressable
                                 style={styles.toggleModeButton}
                                 onPress={() => setIsCameraActive(false)}
                             >
@@ -222,7 +223,7 @@ export default function CheckoutScreen() {
                             placeholderTextColor={Colors.textSecondary}
                         />
                         <Text style={styles.btStatusText}>READY FOR SCANNER</Text>
-                        <Pressable 
+                        <Pressable
                             style={styles.toggleModeButton}
                             onPress={() => setIsCameraActive(true)}
                         >

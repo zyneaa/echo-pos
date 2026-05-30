@@ -12,7 +12,7 @@ export const initDB = () => {
     CREATE TABLE IF NOT EXISTS products (
       id TEXT PRIMARY KEY NOT NULL,
       barcode_id TEXT UNIQUE NOT NULL,
-      name TEXT NOT NULL,
+      product_name TEXT NOT NULL,
       image_url TEXT,
       description TEXT,
       type_id TEXT,
@@ -38,6 +38,16 @@ export const initDB = () => {
   // Migration: Ensure all columns exist in 'products' table
   const tableInfo = db.getAllSync("PRAGMA table_info(products)") as any[];
   const columnNames = tableInfo.map(c => c.name);
+
+  // Rename 'name' to 'product_name' if it exists
+  if (columnNames.includes('name') && !columnNames.includes('product_name')) {
+    try {
+      db.execSync(`ALTER TABLE products RENAME COLUMN name TO product_name;`);
+      console.log(`Renamed column 'name' to 'product_name' in products table`);
+    } catch (e) {
+      console.error(`Failed to rename column 'name' to 'product_name':`, e);
+    }
+  }
 
   const migrations = [
     { name: 'image_url', type: 'TEXT' },
@@ -69,11 +79,14 @@ export const getProductByBarcode = (barcodeId: string) => {
 };
 
 export const upsertProduct = (p: any) => {
+  // Use product_name if it exists, otherwise fall back to name
+  const productName = p.product_name || p.name;
+
   db.runSync(
-    `INSERT INTO products (id, barcode_id, name, image_url, description, type_id, price_mmk, stock_quantity, cost_price_mmk, alert_stock, expire_at)
+    `INSERT INTO products (id, barcode_id, product_name, image_url, description, type_id, price_mmk, stock_quantity, cost_price_mmk, alert_stock, expire_at)
      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
      ON CONFLICT(barcode_id) DO UPDATE SET
-     name=excluded.name,
+     product_name=excluded.product_name,
      image_url=excluded.image_url,
      description=excluded.description,
      type_id=excluded.type_id,
@@ -82,7 +95,7 @@ export const upsertProduct = (p: any) => {
      cost_price_mmk=excluded.cost_price_mmk,
      alert_stock=excluded.alert_stock,
      expire_at=excluded.expire_at`,
-    [p.id, p.barcode_id, p.name, p.image_url, p.description, p.type_id, p.price_mmk, p.stock_quantity, p.cost_price_mmk, p.alert_stock, p.expire_at]
+    [p.id, p.barcode_id, productName, p.image_url, p.description, p.type_id, p.price_mmk, p.stock_quantity, p.cost_price_mmk, p.alert_stock, p.expire_at]
   );
 };
 

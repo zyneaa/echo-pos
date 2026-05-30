@@ -50,7 +50,7 @@ const ProductCard = ({ item, onPress, onEdit }: { item: any; onPress: () => void
             <View style={[styles.productInfo, isExhausted && { borderColor: 'rgba(255,255,255,0.3)' }]}>
                 <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                     <View style={{ flex: 1 }}>
-                        <Text style={[styles.productName, { color: textColor }]}>{item.name}</Text>
+                        <Text style={[styles.productName, { color: textColor }]}>{item.product_name}</Text>
                         <View style={[styles.badge, isExhausted && { backgroundColor: Colors.white }]}>
                             <Text style={[styles.badgeText, isExhausted && { color: '#FF0000' }]}>{item.barcode_id}</Text>
                         </View>
@@ -105,7 +105,7 @@ export default function InventoryScreen() {
 
         try {
             const data = await fetchProductsFromServer({
-                name: search,
+                product_name: search,
                 limit: PAGE_SIZE,
                 offset: newOffset,
                 ...currentFilters
@@ -378,7 +378,7 @@ export default function InventoryScreen() {
                         {selectedProduct && (
                             <View style={styles.detailContainer}>
                                 <View style={styles.detailHero}>
-                                    <Text style={styles.detailName}>{selectedProduct.name}</Text>
+                                    <Text style={styles.detailName}>{selectedProduct.product_name}</Text>
                                     <View style={[styles.badge, { backgroundColor: Colors.primary, marginTop: 8 }]}>
                                         <Text style={styles.badgeText}>{selectedProduct.barcode_id}</Text>
                                     </View>

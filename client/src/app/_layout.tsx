@@ -11,7 +11,7 @@ export default function RootLayout() {
     const colorScheme = useColorScheme();
 
     useEffect(() => {
-        initDB(); // Re-enabled local database after fixing schema migration
+        // initDB(); // Disabled local database for now
     }, []);
 
     return (
