@@ -129,6 +129,15 @@ func (h *Handler) ProcessCheckout(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	ctxValue := r.Context().Value("user_id")
+
+	userID, ok := ctxValue.(string)
+	if !ok {
+		http.Error(w, "user id missing from context", http.StatusInternalServerError)
+		return
+	}
+	t.CashierID = userID
+
 	if err := h.svc.ProcessCheckout(r.Context(), &t); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
