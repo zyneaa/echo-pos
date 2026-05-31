@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import {
     StyleSheet,
     View,
@@ -12,7 +12,7 @@ import {
     Vibration
 } from 'react-native';
 import { Colors } from '@/constants/theme';
-import { ShoppingCart, Trash2, CreditCard, Bluetooth, Camera as CameraIcon, Plus, Minus } from 'lucide-react-native';
+import { ShoppingCart, Trash2, CreditCard, Bluetooth, Camera as CameraIcon, CameraOff, Plus, Minus } from 'lucide-react-native';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import { useCartStore, useAuthStore } from '@/store/useStore';
 import { fetchProductByBarcodeFromServer } from '@/api/sync';
@@ -25,7 +25,51 @@ export default function CheckoutScreen() {
     const { items, addItem, removeItem, updateQuantity, clearCart, total } = useCartStore();
     const [scanned, setScanned] = useState(false);
     const [manualBarcode, setManualBarcode] = useState('');
+    const [paymentMethod, setPaymentMethod] = useState<'CASH' | 'KPAY'>('CASH');
     const scannerInputRef = useRef<TextInput>(null);
+
+    // Scrollbar Logic
+    const scrollY = useRef(new Animated.Value(0)).current;
+    const [contentHeight, setContentHeight] = useState(1);
+    const [listHeight, setListHeight] = useState(1);
+    const flatListRef = useRef<any>(null);
+
+    const scrollIndicatorSize = useMemo(() => {
+        if (contentHeight <= listHeight) return listHeight;
+        return Math.max(20, (listHeight * listHeight) / contentHeight);
+    }, [contentHeight, listHeight]);
+
+    const scrollIndicatorPosition = useMemo(() => {
+        if (contentHeight <= listHeight) return new Animated.Value(0);
+        // We use an interpolation to map scrollY to the track height
+        return scrollY.interpolate({
+            inputRange: [0, contentHeight - listHeight],
+            outputRange: [0, listHeight - scrollIndicatorSize],
+            extrapolate: 'clamp'
+        });
+    }, [contentHeight, listHeight, scrollIndicatorSize]);
+
+    const handleScroll = Animated.event(
+        [{ nativeEvent: { contentOffset: { y: scrollY } } }],
+        { useNativeDriver: true }
+    );
+
+    const onScrollBarGesture = (event: any) => {
+        const { state, y } = event.nativeEvent;
+        if (state === State.ACTIVE || state === State.BEGAN || state === State.CHANGED) {
+            // Calculate where the thumb should be centered on the finger
+            // But for simplicity, we'll map Y position in track to scroll offset
+            const clampedY = Math.max(0, Math.min(y, listHeight));
+            const scrollPos = (clampedY / listHeight) * contentHeight;
+
+            // Adjust scrollPos so the thumb is centered under finger if possible
+            // But simple mapping is usually more predictable
+            flatListRef.current?.scrollToOffset({
+                offset: Math.max(0, Math.min(scrollPos, contentHeight - listHeight)),
+                animated: false
+            });
+        }
+    };
 
     useEffect(() => {
         if (isCameraActive && !permission?.granted) {
@@ -59,7 +103,7 @@ export default function CheckoutScreen() {
 
         const transaction = {
             total_amount_mmk: total,
-            payment_method: 'CASH',
+            payment_method: paymentMethod,
             items: items.map(i => ({
                 product_id: i.id,
                 quantity: i.quantity,
@@ -177,6 +221,8 @@ export default function CheckoutScreen() {
         );
     };
 
+    const AnimatedFlatList = Animated.createAnimatedComponent(FlatList);
+
     return (
         <View style={styles.container}>
             {/* Top Section - Camera or Scan Selector */}
@@ -196,6 +242,14 @@ export default function CheckoutScreen() {
                             >
                                 <Bluetooth size={16} color={Colors.text} />
                                 <Text style={styles.toggleModeText}>SWITCH TO MANUAL</Text>
+                            </Pressable>
+
+                            <Pressable
+                                style={styles.disableCameraButton}
+                                onPress={() => setIsCameraActive(false)}
+                            >
+                                <CameraOff size={14} color={Colors.white} />
+                                <Text style={styles.disableCameraText}>DISABLE CAMERA</Text>
                             </Pressable>
                         </View>
                     ) : (
@@ -241,13 +295,41 @@ export default function CheckoutScreen() {
                     <Text style={styles.cartHeaderText}>YOUR CART ({items.length} ITEMS)</Text>
                 </View>
 
-                <FlatList
-                    data={items}
-                    keyExtractor={item => item.id}
-                    renderItem={({ item }) => <CartItem item={item} />}
-                    contentContainerStyle={styles.cartList}
-                    style={styles.flatList}
-                />
+                <View style={styles.listContainer}>
+                    <AnimatedFlatList
+                        ref={flatListRef}
+                        data={items}
+                        keyExtractor={item => item.id}
+                        renderItem={({ item }) => <CartItem item={item} />}
+                        contentContainerStyle={styles.cartList}
+                        style={styles.flatList}
+                        showsVerticalScrollIndicator={false}
+                        onScroll={handleScroll}
+                        scrollEventThrottle={16}
+                        onContentSizeChange={(w, h) => setContentHeight(h)}
+                        onLayout={(e) => setListHeight(e.nativeEvent.layout.height)}
+                    />
+
+                    {/* Custom Brutalist Scrollbar */}
+                    {contentHeight > listHeight && (
+                        <PanGestureHandler
+                            onGestureEvent={onScrollBarGesture}
+                            onHandlerStateChange={onScrollBarGesture}
+                        >
+                            <View style={styles.scrollbarTrack}>
+                                <Animated.View
+                                    style={[
+                                        styles.scrollbarThumb,
+                                        {
+                                            height: scrollIndicatorSize,
+                                            transform: [{ translateY: scrollIndicatorPosition }]
+                                        }
+                                    ]}
+                                />
+                            </View>
+                        </PanGestureHandler>
+                    )}
+                </View>
 
                 <View style={styles.summaryContainer}>
                     <View style={styles.summaryRow}>
@@ -259,22 +341,39 @@ export default function CheckoutScreen() {
                         <Text style={styles.totalValue}>{total.toLocaleString()} MMK</Text>
                     </View>
 
-                    <View style={{ flexDirection: 'row', gap: 10 }}>
+                    <Text style={styles.paymentLabel}>PAYMENT METHOD</Text>
+                    <View style={styles.paymentRow}>
                         <Pressable
-                            style={[styles.checkoutButton, { flex: 1, backgroundColor: Colors.backgroundElement }]}
-                            onPress={clearCart}
+                            style={[styles.paymentButton, paymentMethod === 'CASH' && styles.paymentButtonActive]}
+                            onPress={() => setPaymentMethod('CASH')}
                         >
-                            <Text style={[styles.checkoutButtonText, { color: Colors.text }]}>CLEAR</Text>
+                            <Text style={[styles.paymentButtonText, paymentMethod === 'CASH' && styles.paymentButtonTextActive]}>CASH</Text>
                         </Pressable>
                         <Pressable
-                            style={[styles.checkoutButton, { flex: 2 }]}
-                            onPress={handleCheckout}
+                            style={[styles.paymentButton, paymentMethod === 'KPAY' && styles.paymentButtonActive]}
+                            onPress={() => setPaymentMethod('KPAY')}
                         >
-                            <CreditCard size={24} color={Colors.white} strokeWidth={3} />
-                            <Text style={styles.checkoutButtonText}>CHECKOUT</Text>
+                            <Text style={[styles.paymentButtonText, paymentMethod === 'KPAY' && styles.paymentButtonTextActive]}>KPAY</Text>
                         </Pressable>
                     </View>
                 </View>
+            </View>
+
+            {/* Sticky Bottom Buttons */}
+            <View style={styles.buttonContainer}>
+                <Pressable
+                    style={[styles.checkoutButton, { flex: 1, backgroundColor: Colors.backgroundElement }]}
+                    onPress={clearCart}
+                >
+                    <Text style={[styles.checkoutButtonText, { color: Colors.text }]}>CLEAR</Text>
+                </Pressable>
+                <Pressable
+                    style={[styles.checkoutButton, { flex: 2 }]}
+                    onPress={handleCheckout}
+                >
+                    <CreditCard size={24} color={Colors.white} strokeWidth={3} />
+                    <Text style={styles.checkoutButtonText}>CHECKOUT</Text>
+                </Pressable>
             </View>
         </View>
     );
@@ -359,12 +458,50 @@ const styles = StyleSheet.create({
         fontWeight: '900',
         color: Colors.text,
     },
+    disableCameraButton: {
+        position: 'absolute',
+        top: 12,
+        right: 12,
+        backgroundColor: '#FF0000',
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 6,
+        padding: 6,
+        borderWidth: 2,
+        borderColor: Colors.text,
+        borderBottomWidth: 4,
+        borderRightWidth: 4,
+        zIndex: 30,
+    },
+    disableCameraText: {
+        fontSize: 9,
+        fontWeight: '900',
+        color: Colors.white,
+    },
     bottomSection: {
         flex: 1,
         backgroundColor: Colors.background,
     },
     flatList: {
         flex: 1,
+    },
+    listContainer: {
+        flex: 1,
+        flexDirection: 'row',
+    },
+    scrollbarTrack: {
+        width: 24,
+        backgroundColor: Colors.backgroundElement,
+        borderLeftWidth: 4,
+        borderColor: Colors.text,
+    },
+    scrollbarThumb: {
+        width: '100%',
+        backgroundColor: Colors.primary,
+        borderWidth: 2,
+        borderColor: Colors.text,
+        borderBottomWidth: 6,
+        borderRightWidth: 0,
     },
     cartHeader: {
         flexDirection: 'row',
@@ -466,7 +603,6 @@ const styles = StyleSheet.create({
         borderTopWidth: 4,
         borderColor: Colors.text,
         padding: 16,
-        paddingBottom: 110,
     },
     summaryRow: {
         flexDirection: 'row',
@@ -500,6 +636,49 @@ const styles = StyleSheet.create({
         fontWeight: '900',
         color: Colors.primary,
     },
+    paymentLabel: {
+        fontSize: 11,
+        fontWeight: '900',
+        color: Colors.text,
+        marginTop: 12,
+        marginBottom: 8,
+    },
+    paymentRow: {
+        flexDirection: 'row',
+        gap: 10,
+        marginBottom: 12,
+    },
+    paymentButton: {
+        flex: 1,
+        height: 40,
+        borderWidth: 3,
+        borderColor: Colors.text,
+        justifyContent: 'center',
+        alignItems: 'center',
+        backgroundColor: Colors.white,
+    },
+    paymentButtonActive: {
+        backgroundColor: Colors.text,
+        borderBottomWidth: 6,
+        borderRightWidth: 6,
+    },
+    paymentButtonText: {
+        fontSize: 14,
+        fontWeight: '900',
+        color: Colors.text,
+    },
+    paymentButtonTextActive: {
+        color: Colors.white,
+    },
+    buttonContainer: {
+        flexDirection: 'row',
+        gap: 10,
+        padding: 16,
+        paddingBottom: 24,
+        backgroundColor: Colors.white,
+        borderTopWidth: 2,
+        borderColor: Colors.backgroundElement,
+    },
     checkoutButton: {
         backgroundColor: Colors.primary,
         flexDirection: 'row',
@@ -511,7 +690,6 @@ const styles = StyleSheet.create({
         borderColor: Colors.text,
         borderBottomWidth: 8,
         borderRightWidth: 8,
-        marginTop: 12,
     },
     checkoutButtonText: {
         color: Colors.white,

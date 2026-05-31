@@ -12,7 +12,7 @@ import {
     Modal
 } from 'react-native';
 import { Colors } from '@/constants/theme';
-import { Scan, Save, Database, Bluetooth, Camera as CameraIcon, AlertTriangle, FileText, Calendar, ChevronLeft, ChevronRight, X, Search, CheckCircle, XCircle, Plus, Edit2, ArrowRight } from 'lucide-react-native';
+import { Scan, Save, Database, Bluetooth, Camera as CameraIcon, CameraOff, AlertTriangle, FileText, Calendar, ChevronLeft, ChevronRight, X, Search, CheckCircle, XCircle, Plus, Edit2, ArrowRight } from 'lucide-react-native';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import { upsertProductToServer, fetchProductByBarcodeFromServer } from '@/api/sync';
 import 'react-native-get-random-values';
@@ -238,6 +238,14 @@ export default function ScannerScreen() {
                             >
                                 <Bluetooth size={16} color={Colors.text} />
                                 <Text style={styles.toggleModeText}>BT SCANNER</Text>
+                            </Pressable>
+
+                            <Pressable
+                                style={styles.disableCameraButton}
+                                onPress={() => setIsCameraActive(false)}
+                            >
+                                <CameraOff size={16} color={Colors.white} />
+                                <Text style={styles.disableCameraText}>DISABLE CAMERA</Text>
                             </Pressable>
 
                             <View style={[styles.corner, { top: 20, left: 20, borderLeftWidth: 6, borderTopWidth: 6 }]} />
@@ -626,6 +634,26 @@ const styles = StyleSheet.create({
         fontSize: 10,
         fontWeight: '900',
         color: Colors.text,
+    },
+    disableCameraButton: {
+        position: 'absolute',
+        top: 20,
+        right: 20,
+        backgroundColor: '#FF0000',
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 8,
+        padding: 8,
+        borderWidth: 2,
+        borderColor: Colors.text,
+        borderBottomWidth: 4,
+        borderRightWidth: 4,
+        zIndex: 30,
+    },
+    disableCameraText: {
+        fontSize: 10,
+        fontWeight: '900',
+        color: Colors.white,
     },
     hiddenInput: {
         position: 'absolute',

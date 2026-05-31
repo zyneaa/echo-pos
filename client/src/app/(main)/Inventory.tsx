@@ -32,7 +32,7 @@ import { globalStyle } from '@/constants/globalStyle';
 const { height } = Dimensions.get('window');
 const PAGE_SIZE = 10;
 
-const ProductCard = ({ item, onPress, onEdit }: { item: any; onPress: () => void; onEdit: () => void }) => {
+const ProductCard = ({ item, onPress, onEdit, typeName }: { item: any; onPress: () => void; onEdit: () => void; typeName?: string }) => {
     const isExhausted = item.stock_quantity === 0;
     const isAlert = item.stock_quantity <= item.alert_stock;
 
@@ -51,6 +51,7 @@ const ProductCard = ({ item, onPress, onEdit }: { item: any; onPress: () => void
                 <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                     <View style={{ flex: 1 }}>
                         <Text style={[styles.productName, { color: textColor }]}>{item.product_name}</Text>
+                        <Text style={[styles.productType, { color: secondaryTextColor }]}>{typeName || item.type_id}</Text>
                         <View style={[styles.badge, isExhausted && { backgroundColor: Colors.white }]}>
                             <Text style={[styles.badgeText, isExhausted && { color: '#FF0000' }]}>{item.barcode_id}</Text>
                         </View>
@@ -98,6 +99,13 @@ export default function InventoryScreen() {
         max_price: '',
     });
     const [activeFilters, setActiveFilters] = useState<any>({});
+
+    const productTypeMap = React.useMemo(() => {
+        return productTypes.reduce((acc, t) => {
+            acc[t.id] = t.type_name;
+            return acc;
+        }, {} as Record<string, string>);
+    }, [productTypes]);
 
     const loadProducts = async (newOffset = 0, currentFilters = activeFilters) => {
         if (newOffset === 0) setLoading(true);
@@ -332,6 +340,7 @@ export default function InventoryScreen() {
                         item={item}
                         onPress={() => setSelectedProduct(item)}
                         onEdit={() => handleEdit(item)}
+                        typeName={productTypeMap[item.type_id]}
                     />
                 )}
                 contentContainerStyle={styles.listContent}
@@ -385,6 +394,18 @@ export default function InventoryScreen() {
                                 </View>
 
                                 <View style={styles.detailGrid}>
+                                    <View style={styles.detailItem}>
+                                        <View style={styles.detailIconWrapper}>
+                                            <Filter size={20} color={Colors.text} strokeWidth={3} />
+                                        </View>
+                                        <View>
+                                            <Text style={styles.detailLabel}>PRODUCT TYPE</Text>
+                                            <Text style={styles.detailValue}>
+                                                {productTypeMap[selectedProduct.type_id] || selectedProduct.type_id || 'N/A'}
+                                            </Text>
+                                        </View>
+                                    </View>
+
                                     <View style={styles.detailItem}>
                                         <View style={styles.detailIconWrapper}>
                                             <DollarSign size={20} color={Colors.text} strokeWidth={3} />
@@ -555,8 +576,15 @@ const styles = StyleSheet.create({
         fontSize: 20,
         fontWeight: '900',
         color: Colors.text,
-        marginBottom: 8,
+        marginBottom: 4,
         flex: 1,
+    },
+    productType: {
+        fontSize: 12,
+        fontWeight: '700',
+        color: Colors.textSecondary,
+        marginBottom: 8,
+        textTransform: 'uppercase',
     },
     badge: {
         backgroundColor: Colors.text,
