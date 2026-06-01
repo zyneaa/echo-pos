@@ -69,7 +69,7 @@ func (s *Service) ProcessCheckout(ctx context.Context, t *Transaction) error {
 		t.Items[i].UnitPriceMMK = prod.PriceMMK
 		t.Items[i].TransactionID = &tID
 
-		calculatedTotal += uint64(prod.PriceMMK * item.Quantity)
+		calculatedTotal += prod.PriceMMK * item.Quantity
 	}
 
 	t.TotalAmountMMK = calculatedTotal

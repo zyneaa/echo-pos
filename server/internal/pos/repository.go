@@ -283,6 +283,12 @@ func (r *Repository) GetTransactions(ctx context.Context, start, end string, min
 		var itemID, itemProdID, itemProdName sql.NullString
 		var itemQty, itemPrice sql.NullInt64
 
+		var qty, price uint64 = 0, 0
+
+		if itemQty.Valid && itemPrice.Valid {
+			qty = uint64(itemQty.Int64); price = uint64(itemPrice.Int64)
+		}
+
 		err := rows.Scan(
 			&tID, &tAmount, &tPayment, &tCashier, &tCreatedAt,
 			&itemID, &itemProdID, &itemQty, &itemPrice, &itemProdName,
@@ -309,8 +315,8 @@ func (r *Repository) GetTransactions(ctx context.Context, start, end string, min
 				TransactionID: &tID,
 				ProductID:     itemProdID.String,
 				ProductName:   itemProdName.String,
-				Quantity:      int(itemQty.Int64),
-				UnitPriceMMK:  int(itemPrice.Int64),
+				Quantity:      qty,
+				UnitPriceMMK:  price,
 			})
 		}
 	}

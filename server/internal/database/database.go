@@ -34,6 +34,8 @@ func InitDB(dbPath string) (*DB, error) {
 		return nil, err
 	}
 
+	db.SetMaxOpenConns(10)
+
 	return db, nil
 }
 
